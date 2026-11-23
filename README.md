@@ -25,7 +25,7 @@ In another, start the dashboard:
 cd examples/basic && bun run viz
 ```
 
-It prints its URL: port 4700, or the next free port if 4700 is taken. Press ⌘K anywhere to jump to a resource.
+It prints its URL: port 4700, or the next free port if 4700 is taken. The top bar holds the project switcher, Overview, Logs and your custom pages, plus a Resources megamenu listing every resource by provider and type. Press ⌘K anywhere to jump to a resource.
 
 ## How it works
 

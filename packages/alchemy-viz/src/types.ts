@@ -53,7 +53,7 @@ export interface ViewEntry {
 export interface PageEntry {
   /** URL segment under `/pages/`, e.g. `seed`. */
   route: string,
-  /** Sidebar label. */
+  /** Label of its button in the top bar. */
   title: string,
   server?: ModuleRef,
   view: ModuleRef

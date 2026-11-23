@@ -2,7 +2,7 @@ import { Outlet } from "@tanstack/react-router";
 import { useState } from "react";
 import { Banner, EmptyState, Loading } from "../../ui/index.ts";
 import { CommandPalette } from "./command-palette.tsx";
-import { Sidebar } from "./sidebar.tsx";
+import { TopBar } from "./top-bar.tsx";
 import { StageContext, useStack } from "./use-stack.ts";
 
 export function Shell() {
@@ -19,8 +19,8 @@ function Layout() {
   const [paletteOpen, setPaletteOpen] = useState(false);
 
   return (
-    <div className="grid min-h-dvh grid-cols-1 lg:grid-cols-[256px_minmax(0,1fr)]">
-      <Sidebar onSearch={() => setPaletteOpen(true)} />
+    <div className="min-h-dvh">
+      <TopBar onSearch={() => setPaletteOpen(true)} />
       <main className="min-w-0 px-4 py-5 sm:px-8 sm:py-7">
         <div className="mx-auto flex max-w-[1320px] flex-col gap-4">
           {stack.data && stack.error && <Banner tone="warn">Lost contact with the stack state: {stack.error.message}</Banner>}
