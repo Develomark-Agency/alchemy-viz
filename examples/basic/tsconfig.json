@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "noEmit": true,
+    "module": "Preserve",
+    "moduleResolution": "Bundler",
+    "target": "ESNext",
+    "strict": true,
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    "jsx": "react-jsx",
+    "types": ["bun", "@cloudflare/workers-types"]
+  },
+  "include": ["alchemy.run.ts", "alchemy-viz.config.ts", "src/**/*", "viz/**/*"]
+}

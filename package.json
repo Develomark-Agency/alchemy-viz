@@ -1,0 +1,21 @@
+{
+  "name": "alchemy-viz-monorepo",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "examples/*"
+  ],
+  "trustedDependencies": [
+    "workerd",
+    "esbuild"
+  ],
+  "scripts": {
+    "typecheck": "bun run --filter '*' typecheck",
+    "lint": "oxlint"
+  },
+  "devDependencies": {
+    "@stylistic/eslint-plugin": "^6.0.1",
+    "oxlint": "^1.94.0"
+  }
+}
