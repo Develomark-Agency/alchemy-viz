@@ -28,10 +28,12 @@ function ResourceTile({ r }: { r: ResourceInfo }) {
 
 function Section({ title, count, children }: { title: string, count?: number, children: ReactNode }) {
   return (
-    <section className="flex flex-col gap-2.5">
-      <h2 className="flex items-baseline gap-2 text-[13px] font-semibold">
-        {title}
-        {count !== undefined && <span className="font-normal text-fg-subtle tabular-nums">{count}</span>}
+    <section className="flex flex-col gap-3">
+      <h2 className="flex items-center gap-3 text-[13px] font-medium after:h-px after:flex-1 after:bg-line">
+        <span className="flex items-baseline gap-2">
+          {title}
+          {count !== undefined && <span className="font-normal text-fg-subtle tabular-nums">{count}</span>}
+        </span>
       </h2>
       {children}
     </section>

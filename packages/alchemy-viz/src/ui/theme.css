@@ -12,29 +12,30 @@
 :root {
   color-scheme: light dark;
 
-  --av-canvas: light-dark(#fafafa, #0a0a0b);
-  --av-surface: light-dark(#ffffff, #111113);
-  --av-surface-2: light-dark(#f4f4f5, #18181b);
-  --av-hover: light-dark(#efeff1, #1e1e22);
-  --av-line: light-dark(#e4e4e7, #26262b);
-  --av-line-strong: light-dark(#d4d4d8, #3b3b42);
-  --av-fg: light-dark(#09090b, #ededef);
-  --av-fg-muted: light-dark(#52525b, #a1a1aa);
-  --av-fg-subtle: light-dark(#71717a, #7c7c86);
+  --av-canvas: light-dark(#e6e7df, #0a0a0a);
+  --av-surface: light-dark(#f1f2ec, #101010);
+  --av-surface-2: light-dark(#e9eae2, #171717);
+  --av-hover: light-dark(#deded5, #1c1c1c);
+  --av-line: light-dark(#c9cbc1, #232323);
+  --av-line-strong: light-dark(#b3b5aa, #333333);
+  --av-grid: light-dark(#dcddd4, #181818);
+  --av-fg: light-dark(#1b1c19, #ededed);
+  --av-fg-muted: light-dark(#5d5f58, #a1a1a1);
+  --av-fg-subtle: light-dark(#767870, #7a7a7a);
 
-  --av-accent: light-dark(#ea580c, #fb923c);
+  --av-accent: light-dark(#d9480f, #ff7a2e);
   --av-accent-fg: light-dark(#ffffff, #1c0a02);
-  --av-accent-soft: light-dark(#fff1e6, #2b1609);
-  --av-accent-soft-fg: light-dark(#b23f05, #fdba8c);
+  --av-accent-soft: light-dark(#f1e0d4, #2b1609);
+  --av-accent-soft-fg: light-dark(#a63a0b, #fdba8c);
 
-  --av-ok: light-dark(#15803d, #4ade80);
-  --av-ok-soft: light-dark(#e7f6ec, #0f2418);
-  --av-warn: light-dark(#a35200, #fbbf24);
-  --av-warn-soft: light-dark(#fdf3e1, #2a1f0b);
-  --av-danger: light-dark(#d01f1f, #f87171);
-  --av-danger-soft: light-dark(#fdecec, #2c1213);
-  --av-info: light-dark(#1d5fd8, #7cacf8);
-  --av-info-soft: light-dark(#e9f0fd, #111d33);
+  --av-ok: light-dark(#3d6b4a, #4fbf84);
+  --av-ok-soft: light-dark(#dce6dc, #0f2418);
+  --av-warn: light-dark(#8f5a00, #fbbf24);
+  --av-warn-soft: light-dark(#eee5cf, #2a1f0b);
+  --av-danger: light-dark(#b82a22, #f87171);
+  --av-danger-soft: light-dark(#f0dcd7, #2c1213);
+  --av-info: light-dark(#2f5aa8, #7cacf8);
+  --av-info-soft: light-dark(#dce3ec, #111d33);
 }
 
 :root[data-theme="light"] {
@@ -68,8 +69,8 @@
   --color-info: var(--av-info);
   --color-info-soft: var(--av-info-soft);
 
-  --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "Geist Mono", ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  --font-sans: "IBM Plex Sans Variable", "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
   --shadow-popup: 0 0 0 1px var(--av-line), 0 8px 24px -6px light-dark(rgb(0 0 0 / 0.14), rgb(0 0 0 / 0.6));
 

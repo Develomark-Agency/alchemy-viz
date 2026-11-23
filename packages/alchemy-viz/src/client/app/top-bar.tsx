@@ -156,7 +156,7 @@ export function TopBar({ onSearch }: { onSearch: () => void }) {
 
   return (
     <>
-      <header id="viz-top-bar" className="sticky top-0 z-40 flex h-[52px] items-center gap-2 border-b border-line bg-surface px-3 sm:gap-3 sm:px-4">
+      <header id="viz-top-bar" className="sticky top-0 z-40 flex h-[52px] items-center gap-2 border-b border-line bg-canvas px-3 sm:gap-3 sm:px-4">
         <Link to="/" className="flex shrink-0 items-center gap-2 rounded-md px-1 py-1" aria-label="alchemy-viz home">
           <svg width="16" height="16" viewBox="0 0 32 32" aria-hidden>
             <path d="M12 3h8v2h-2v7l8 14a2 2 0 0 1-2 3H8a2 2 0 0 1-2-3l8-14V5h-2z" fill="var(--av-accent)" />

@@ -3,7 +3,7 @@
  * ELK's layered layout for placement (dependencies left, dependents right).
  */
 import { useNavigate } from "@tanstack/react-router";
-import { Background, Controls, type Edge, Handle, MarkerType, type Node, type NodeProps, Position, ReactFlow } from "@xyflow/react";
+import { Background, BackgroundVariant, Controls, type Edge, Handle, MarkerType, type Node, type NodeProps, Position, ReactFlow } from "@xyflow/react";
 import ELK from "elkjs/lib/elk.bundled.js";
 import { useEffect, useMemo, useState } from "react";
 import type { ResourceInfo } from "../../types.ts";
@@ -19,7 +19,7 @@ type ResourceNode = Node<{ resource: ResourceInfo }, "resource">;
 function ResourceNodeView({ data }: NodeProps<ResourceNode>) {
   const r = data.resource;
   return (
-    <div className="flex h-full w-full cursor-pointer items-center gap-2.5 rounded-lg border border-line-strong bg-surface px-3 shadow-xs transition-colors hover:border-accent">
+    <div className="flex h-full w-full cursor-pointer items-center gap-2.5 rounded-lg border border-line-strong bg-surface px-3 transition-colors hover:border-fg">
       <Handle type="target" position={Position.Left} className="!size-1.5 !min-h-0 !min-w-0 !border-0 !bg-line-strong" />
       <ResourceIcon type={r.type} size={26} />
       <div className="min-w-0">
@@ -45,8 +45,8 @@ export function Graph({ resources }: { resources: ResourceInfo[] }) {
       id: `${r.fqn}->${d}`,
       source: r.fqn,
       target: d,
-      style: { stroke: "var(--av-line-strong)", strokeWidth: 1.5 },
-      markerEnd: { type: MarkerType.ArrowClosed, color: "var(--av-line-strong)", width: 16, height: 16 }
+      style: { stroke: "var(--av-fg-subtle)", strokeWidth: 1 },
+      markerEnd: { type: MarkerType.ArrowClosed, color: "var(--av-fg-subtle)", width: 14, height: 14 }
     })));
   }, [resources]);
 
@@ -116,7 +116,7 @@ export function Graph({ resources }: { resources: ResourceInfo[] }) {
           onNodeClick={(_, node) => navigate({ to: "/r/$fqn", params: { fqn: node.id } })}
           aria-label="Resource dependency graph"
         >
-          <Background gap={16} size={1} color="var(--av-line)" />
+          <Background variant={BackgroundVariant.Lines} gap={27} size={1} color="var(--av-grid)" />
           <Controls showInteractive={false} position="bottom-right" />
         </ReactFlow>
       )}
