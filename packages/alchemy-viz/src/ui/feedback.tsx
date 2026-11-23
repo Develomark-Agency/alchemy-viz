@@ -1,40 +1,67 @@
-import { CircleAlert, ExternalLink, Info, TriangleAlert } from "lucide-react";
+import { CircleAlert, Cloud, ExternalLink, Info, Laptop, TriangleAlert } from "lucide-react";
 import type { ReactNode } from "react";
 import { buttonClass } from "./button.tsx";
 import { cn } from "./cn.ts";
 
 export type Tone = "neutral" | "accent" | "ok" | "warn" | "danger" | "info";
 
+// Banners keep soft fills; inline tags only tint their text, so a table of
+// them reads as information rather than a row of candy.
 const tones: Record<Tone, string> = {
-  neutral: "bg-surface-2 text-fg-muted ring-line",
-  accent: "bg-accent-soft text-accent-soft-fg ring-transparent",
-  ok: "bg-ok-soft text-ok ring-transparent",
-  warn: "bg-warn-soft text-warn ring-transparent",
-  danger: "bg-danger-soft text-danger ring-transparent",
-  info: "bg-info-soft text-info ring-transparent"
+  neutral: "bg-surface-2 text-fg-muted",
+  accent: "bg-accent-soft text-accent-soft-fg",
+  ok: "bg-ok-soft text-ok",
+  warn: "bg-warn-soft text-warn",
+  danger: "bg-danger-soft text-danger",
+  info: "bg-info-soft text-info"
 };
 
-export function Badge({ tone = "neutral", dot, children, className }: { tone?: Tone, dot?: boolean, children: ReactNode, className?: string }) {
+const tagText: Record<Tone, string> = {
+  neutral: "text-fg-muted",
+  accent: "text-accent-soft-fg",
+  ok: "text-ok",
+  warn: "text-warn",
+  danger: "text-danger",
+  info: "text-info"
+};
+
+/** A small, flat label: a type, a flag, a count. */
+export function Badge({ tone = "neutral", children, className }: { tone?: Tone, children: ReactNode, className?: string }) {
   return (
-    <span className={cn("inline-flex h-5 items-center gap-1.5 rounded-full px-2 text-[11px] font-medium whitespace-nowrap ring-1 ring-inset", tones[tone], className)}>
-      {dot && <span className="size-1.5 rounded-full bg-current" />}
+    <span className={cn("inline-flex h-5 items-center rounded-[4px] border border-line bg-surface-2/60 px-1.5 font-mono text-[11px] whitespace-nowrap", tagText[tone], className)}>
       {children}
     </span>
   );
 }
 
-function statusTone(status: string): Tone {
-  if(/^(created|updated|ok|ready|running|active|complete)/i.test(status)) return "ok";
-  if(/fail|error/i.test(status)) return "danger";
-  if(/ing$|pending|queued/i.test(status)) return "warn";
-  return "neutral";
+/**
+ * A resource's lifecycle status as plain text. Settled states stay quiet;
+ * only work in progress and failures draw attention.
+ */
+export function StatusText({ status, className }: { status: string, className?: string }) {
+  const failed = /fail|error/i.test(status);
+  const busy = !failed && /ing$|pending|queued/i.test(status);
+  return (
+    <span className={cn("inline-flex items-center gap-1.5 text-[13px] whitespace-nowrap capitalize", failed ? "text-danger" : busy ? "text-warn" : "text-fg-muted", className)}>
+      {failed && <CircleAlert className="size-3.5" />}
+      {busy && <Spinner className="size-3" />}
+      {status}
+    </span>
+  );
 }
 
-export function StatusPill({ status }: { status: string }) {
+/** @deprecated Use StatusText. */
+export const StatusPill = StatusText;
+
+/** Where a resource runs: a local simulator, or the cloud. */
+export function RunsOn({ mode, className }: { mode: "local" | "live" | undefined, className?: string }) {
+  if(!mode) return <span className={cn("text-[13px] text-fg-subtle", className)}>—</span>;
+  const Icon = mode === "local" ? Laptop : Cloud;
   return (
-    <Badge tone={statusTone(status)} dot>
-      {status}
-    </Badge>
+    <span className={cn("inline-flex items-center gap-1.5 text-[13px] whitespace-nowrap text-fg-muted", className)}>
+      <Icon className="size-3.5 text-fg-subtle" strokeWidth={1.75} />
+      {mode === "local" ? "Local" : "Cloud"}
+    </span>
   );
 }
 

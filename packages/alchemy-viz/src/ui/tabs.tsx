@@ -11,7 +11,7 @@ export function TabsList({ className, children, ...rest }: Omit<ComponentProps<t
   return (
     <TabsListPart {...rest} className={withClass("relative flex min-w-0 items-center gap-1 overflow-x-auto border-b border-line [scrollbar-width:none]", className)}>
       {children}
-      <TabsIndicator className="absolute bottom-0 left-(--active-tab-left) h-0.5 w-(--active-tab-width) rounded-full bg-fg transition-[left,width] duration-200 motion-reduce:transition-none" />
+      <TabsIndicator className="absolute bottom-0 left-(--active-tab-left) h-0.5 w-(--active-tab-width) rounded-full bg-fg transition-[left,width] duration-200 ease-in-out motion-reduce:transition-none" />
     </TabsListPart>
   );
 }
@@ -21,7 +21,7 @@ export function TabsTab({ className, ...rest }: ComponentProps<typeof TabsTabPar
 }
 
 export function TabsPanel({ className, ...rest }: ComponentProps<typeof TabsPanelPart>) {
-  return <TabsPanelPart {...rest} className={withClass("min-w-0 outline-none", className)} />;
+  return <TabsPanelPart {...rest} className={withClass("min-w-0 outline-none animate-in fade-in slide-in-from-bottom-1 duration-200 ease-out", className)} />;
 }
 
 export function TabCount({ children }: { children: number | undefined }) {

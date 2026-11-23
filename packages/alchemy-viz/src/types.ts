@@ -32,6 +32,8 @@ export interface StackInfo {
   stages: string[],
   /** Absolute project root (the directory holding the config). */
   root: string,
+  /** The user's home directory, so paths can be shown as `~/…`. */
+  home: string,
   output: unknown,
   resources: ResourceInfo[]
 }

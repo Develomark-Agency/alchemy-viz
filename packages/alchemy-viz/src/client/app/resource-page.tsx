@@ -1,8 +1,9 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
+import type { ReactNode } from "react";
 import { views } from "virtual:alchemy-viz/registry";
 import type { ResourceInfo } from "../../types.ts";
-import { Badge, EmptyState, ExternalLinkCard, JsonInspector, LinkButton, Page, Panel, StatusPill, Tabs, TabsList, TabsPanel, TabsTab } from "../../ui/index.ts";
+import { EmptyState, ExternalLinkCard, JsonInspector, LinkButton, Page, Panel, RunsOn, StatusText, Tabs, TabsList, TabsPanel, TabsTab } from "../../ui/index.ts";
 import { LogsPanel } from "./logs-panel.tsx";
 import { ViewHost } from "./plugin-host.tsx";
 import { ResourceIcon } from "./resource-icon.tsx";
@@ -14,50 +15,69 @@ function providerName(type: string) {
   return type.split(".")[0];
 }
 
-function Connections({ resource, resources }: { resource: ResourceInfo, resources: ResourceInfo[] }) {
-  const typeOf = new Map(resources.map(r => [r.fqn, r.type]));
-  function list(fqns: string[]) {
-    if(fqns.length === 0) return <span className="text-fg-subtle">None</span>;
-    return (
-      <div className="flex flex-wrap gap-1.5">
-        {fqns.map(f => (
-          <Link key={f} to="/r/$fqn" params={{ fqn: f }} className="inline-flex h-6 items-center gap-1.5 rounded-md border border-line bg-surface-2 pr-2 pl-1 text-xs font-medium hover:border-line-strong">
-            <ResourceIcon type={typeOf.get(f) ?? f} size={16} />
-            {f}
-          </Link>
-        ))}
-      </div>
-    );
-  }
+function ConnectionList({ title, fqns, typeOf }: { title: string, fqns: string[], typeOf: Map<string, string> }) {
   return (
-    <dl className="grid grid-cols-[96px_minmax(0,1fr)] items-start gap-x-6 gap-y-3 text-[13px]">
-      <dt className="pt-0.5 text-fg-muted">Depends on</dt>
-      <dd>{list(resource.upstream)}</dd>
-      <dt className="pt-0.5 text-fg-muted">Used by</dt>
-      <dd>{list(resource.downstream)}</dd>
-    </dl>
+    <div className="flex flex-col">
+      <div className="px-4 pt-3 pb-1.5 text-xs text-fg-muted">{title}</div>
+      {fqns.length === 0
+        ? <div className="px-4 pb-3 text-[13px] text-fg-subtle">None</div>
+        : (
+          <ul className="pb-1.5">
+            {fqns.map(f => (
+              <li key={f}>
+                <Link to="/r/$fqn" params={{ fqn: f }} className="group flex items-center gap-2.5 px-4 py-1.5 text-[13px] transition-colors duration-150 ease-out hover:bg-hover">
+                  <ResourceIcon type={typeOf.get(f) ?? f} size={22} />
+                  <span className="min-w-0 flex-1 truncate font-medium">{f}</span>
+                  <span className="truncate text-xs text-fg-subtle">{typeLabel(typeOf.get(f) ?? "").name}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+    </div>
   );
 }
 
 function Details({ resource, resources }: { resource: ResourceInfo, resources: ResourceInfo[] }) {
+  const typeOf = new Map(resources.map(r => [r.fqn, r.type]));
+  const label = typeLabel(resource.type);
   return (
-    <div className="flex flex-col gap-4">
-      <Panel title="Connections">
-        <Connections resource={resource} resources={resources} />
-      </Panel>
-      <div className="grid gap-4 xl:grid-cols-2">
+    <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="flex min-w-0 flex-col gap-4">
         <Panel title="Attributes">
           <JsonInspector value={resource.attr} label="Attributes" />
         </Panel>
         <Panel title="Props">
           <JsonInspector value={resource.props} label="Props" />
         </Panel>
+        {resource.bindings.length > 0 && (
+          <Panel title="Bindings">
+            <JsonInspector value={resource.bindings} label="Bindings" openDepth={1} />
+          </Panel>
+        )}
       </div>
-      {resource.bindings.length > 0 && (
-        <Panel title="Bindings">
-          <JsonInspector value={resource.bindings} label="Bindings" openDepth={1} />
+      <div className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-[calc(var(--topbar-h)+16px)]">
+        <Panel title="Summary" flush>
+          <dl className="divide-y divide-line text-[13px]">
+            {([
+              ["Type", <span title={resource.type}>{label.provider ? `${label.provider} ${label.name}` : label.name}</span>],
+              ["Logical ID", <span className="font-mono text-xs">{resource.logicalId}</span>],
+              ...(resource.fqn !== resource.logicalId ? [["FQN", <span className="font-mono text-xs break-all">{resource.fqn}</span>] as const] : []),
+              ["Status", <StatusText status={resource.status} />],
+              ["Runs", <RunsOn mode={resource.mode} />]
+            ] as Array<readonly [string, ReactNode]>).map(([k, v]) => (
+              <div key={k} className="flex items-baseline justify-between gap-4 px-4 py-2.5">
+                <dt className="shrink-0 text-xs text-fg-muted">{k}</dt>
+                <dd className="min-w-0 text-right">{v}</dd>
+              </div>
+            ))}
+          </dl>
         </Panel>
-      )}
+        <Panel title="Connections" flush bodyClassName="divide-y divide-line">
+          <ConnectionList title="Depends on" fqns={resource.upstream} typeOf={typeOf} />
+          <ConnectionList title="Used by" fqns={resource.downstream} typeOf={typeOf} />
+        </Panel>
+      </div>
     </div>
   );
 }
@@ -87,22 +107,19 @@ export function ResourcePage() {
     <Page
       title={
         <span className="flex items-center gap-2.5">
-          <ResourceIcon type={resource.type} size={26} />
+          <ResourceIcon type={resource.type} size={30} />
           {resource.logicalId}
         </span>
       }
-      subtitle={
-        <span title={resource.type}>
-          {label.provider ? `${label.provider} ${label.name}` : label.name}
-          {resource.fqn !== resource.logicalId && <span className="text-fg-subtle"> · {resource.fqn}</span>}
+      subtitle={(
+        <span className="flex flex-wrap items-center gap-x-2">
+          <span title={resource.type}>{label.provider ? `${label.provider} ${label.name}` : label.name}</span>
+          {resource.fqn !== resource.logicalId && <span className="font-mono text-xs text-fg-subtle">{resource.fqn}</span>}
+          <span className="text-line-strong">/</span>
+          <RunsOn mode={resource.mode} />
+          <span className="text-line-strong">/</span>
+          <StatusText status={resource.status} />
         </span>
-      }
-      badges={(
-        <>
-          <StatusPill status={resource.status} />
-          {resource.mode === "local" && <Badge tone="info">local</Badge>}
-          {resource.mode === "live" && <Badge tone="warn">cloud</Badge>}
-        </>
       )}
       actions={meta?.link && resource.mode !== "local" && (
         <LinkButton href={meta.link}>

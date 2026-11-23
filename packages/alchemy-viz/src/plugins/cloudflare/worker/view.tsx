@@ -1,4 +1,4 @@
-import { ExternalLink, Play, Send, Zap } from "lucide-react";
+import { ArrowUpRight, ExternalLink, Play, Send, Zap } from "lucide-react";
 import { useMemo, useState } from "react";
 import { type Api, defineView, ResourceLink } from "../../../client/index.tsx";
 import type { ResourceInfo, StackInfo } from "../../../types.ts";
@@ -7,15 +7,14 @@ import {
   Button,
   CodeBlock,
   CodeEditor,
-  type Column,
-  DataTable,
+  ContentPreview,
   EmptyState,
   ErrorBanner,
   Input,
   KeyValueList,
   languageFor,
-  LinkButton,
   Panel,
+  previewKind,
   Select,
   Tabs,
   TabsList,
@@ -69,46 +68,53 @@ function describeBindings(resource: ResourceInfo, stack: StackInfo): BindingRow[
   return rows.sort((a, b) => a.name.localeCompare(b.name));
 }
 
-const bindingColumns: Array<Column<BindingRow>> = [
-  { id: "name", header: "Name", size: 180, cell: b => <span className="font-mono text-xs">{b.name}</span> },
-  { id: "type", header: "Type", size: 130, cell: b => <Badge>{typeLabels[b.type] ?? b.type}</Badge> },
-  {
-    id: "value",
-    header: "Value",
-    size: 280,
-    accessor: b => b.target ?? b.value,
-    cell: b => (b.target ? <ResourceLink fqn={b.target} className="font-medium text-accent hover:underline" /> : <span className="font-mono text-xs text-fg-muted">{b.value}</span>)
-  }
-];
-
 export default defineView<typeof server>(({ resource, stack, api }) => {
   const url: string | undefined = resource.attr?.url;
   const crons: string[] = resource.attr?.crons ?? resource.props?.crons ?? [];
   const bindings = useMemo(() => describeBindings(resource, stack), [resource, stack]);
 
   return (
-    <div className="flex flex-col gap-4">
-      <Panel
-        title="Endpoint"
-        actions={url && (
-          <LinkButton href={url} size="sm">
-            Open
-            <ExternalLink />
-          </LinkButton>
-        )}
-      >
+    <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="min-w-0">
         {url
-          ? <a href={url} target="_blank" rel="noreferrer" className="font-mono text-[13px] text-accent hover:underline">{url}</a>
-          : <span className="text-fg-subtle">No URL yet</span>}
-      </Panel>
-
-      {url && <RequestTool api={api} />}
-
-      {crons.length > 0 && <CronPanel api={api} crons={crons} />}
-
-      <Panel title={<>Bindings <span className="font-normal text-fg-subtle">{bindings.length}</span></>} flush>
-        <DataTable rows={bindings} columns={bindingColumns} getRowId={b => b.name} empty="No bindings" />
-      </Panel>
+          ? <RequestTool api={api} url={url} />
+          : <Panel><EmptyState title="No URL yet">The Worker hasn't reported where it serves. Is alchemy dev running?</EmptyState></Panel>}
+      </div>
+      <aside className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-[calc(var(--topbar-h)+16px)]">
+        {url && (
+          <Panel title="Endpoint" flush>
+            <a href={url} target="_blank" rel="noreferrer" className="group flex items-center justify-between gap-3 px-4 py-3 transition-colors duration-150 ease-out hover:bg-hover">
+              <span className="truncate font-mono text-xs">{url.replace(/^https?:\/\//, "")}</span>
+              <ExternalLink className="size-3.5 shrink-0 text-fg-subtle group-hover:text-fg" />
+            </a>
+          </Panel>
+        )}
+        {crons.length > 0 && <CronPanel api={api} crons={crons} />}
+        <Panel title={<>Bindings <span className="font-normal text-fg-subtle tabular-nums">{bindings.length}</span></>} flush>
+          {bindings.length === 0
+            ? <EmptyState title="No bindings" />
+            : (
+              <ul className="divide-y divide-line">
+                {bindings.map(b => (
+                  <li key={b.name} className="flex min-w-0 items-center justify-between gap-3 px-4 py-2.5">
+                    <span className="flex min-w-0 flex-col">
+                      <span className="truncate font-mono text-xs">{b.name}</span>
+                      <span className="text-[11.5px] text-fg-subtle">{typeLabels[b.type] ?? b.type}</span>
+                    </span>
+                    {b.target
+                      ? (
+                        <ResourceLink fqn={b.target} className="group inline-flex min-w-0 items-center gap-1 text-[13px] font-medium hover:underline">
+                          <span className="truncate">{b.target}</span>
+                          <ArrowUpRight className="size-3.5 shrink-0 text-fg-subtle group-hover:text-fg" />
+                        </ResourceLink>
+                      )
+                      : <span className="truncate font-mono text-xs text-fg-muted" title={b.value}>{b.value}</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
+        </Panel>
+      </aside>
     </div>
   );
 });
@@ -117,33 +123,27 @@ function CronPanel({ api, crons }: { api: WorkerApi, crons: string[] }) {
   const trigger = api.trigger.useMutation({
     onSuccess: (r, input) => toast(r.status < 400 ? "Cron triggered" : `Cron failed (${r.status})`, { description: `${input.cron} · output is in the Logs tab` })
   });
-  const columns: Array<Column<{ cron: string }>> = [
-    { id: "cron", header: "Schedule", size: 240, cell: c => <span className="font-mono text-xs">{c.cron}</span> },
-    {
-      id: "run",
-      header: "",
-      size: 140,
-      sortable: false,
-      align: "right",
-      cell: c => (
-        <Button size="sm" onClick={() => trigger.mutateAsync({ cron: c.cron }).catch(() => {})}>
-          <Zap />
-          Trigger now
-        </Button>
-      )
-    }
-  ];
   return (
     <Panel title="Cron triggers" flush>
       <ErrorBanner error={trigger.error} className="m-3" />
-      <DataTable rows={crons.map(cron => ({ cron }))} columns={columns} getRowId={c => c.cron} />
+      <ul className="divide-y divide-line">
+        {crons.map(cron => (
+          <li key={cron} className="flex items-center justify-between gap-3 px-4 py-2">
+            <span className="font-mono text-xs">{cron}</span>
+            <Button size="sm" variant="ghost" onClick={() => trigger.mutateAsync({ cron }).catch(() => {})}>
+              <Zap />
+              Run now
+            </Button>
+          </li>
+        ))}
+      </ul>
     </Panel>
   );
 }
 
 const METHODS: Method[] = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"];
 
-function RequestTool({ api }: { api: WorkerApi }) {
+function RequestTool({ api, url }: { api: WorkerApi, url: string }) {
   const [method, setMethod] = useState<Method>("GET");
   const [path, setPath] = useState("/");
   const [body, setBody] = useState("");
@@ -174,7 +174,10 @@ function RequestTool({ api }: { api: WorkerApi }) {
           }}
         >
           <Select<Method> aria-label="Method" value={method} onValueChange={setMethod} options={METHODS.map(m => ({ value: m, label: m }))} className="w-28 font-mono text-xs" />
-          <Input aria-label="Path" value={path} onValueChange={setPath} className="min-w-40 flex-1 font-mono text-xs" />
+          <label className="flex h-8 min-w-48 flex-1 items-center overflow-hidden rounded-md border border-line-strong bg-surface shadow-xs focus-within:border-accent focus-within:ring-3 focus-within:ring-accent/20">
+            <span className="h-full content-center border-r border-line bg-surface-2/60 px-2.5 font-mono text-xs text-fg-subtle select-none">{url.replace(/^https?:\/\//, "").replace(/\/$/, "")}</span>
+            <Input aria-label="Path" value={path} onValueChange={setPath} className="h-full flex-1 rounded-none border-0 font-mono text-xs shadow-none focus-visible:ring-0" />
+          </label>
           <Button variant="primary" type="button" onClick={submit}>
             <Send />
             Send
@@ -201,9 +204,11 @@ function RequestTool({ api }: { api: WorkerApi }) {
                   <TabsTab value="headers">Headers</TabsTab>
                 </TabsList>
                 <TabsPanel value="body">
-                  {res.body
-                    ? <CodeBlock code={res.body + (res.truncated ? "\n… (truncated)" : "")} language={languageFor(contentType)} />
-                    : <EmptyState title="Empty body" />}
+                  {!res.body
+                    ? <EmptyState title="Empty body" />
+                    : previewKind(contentType) && !res.truncated
+                      ? <ContentPreview text={res.body} kind={previewKind(contentType)!} />
+                      : <CodeBlock code={res.body + (res.truncated ? "\n… (truncated)" : "")} language={languageFor(contentType)} />}
                 </TabsPanel>
                 <TabsPanel value="headers">
                   <KeyValueList items={Object.entries(res.headers).map(([k, v]) => [<span className="font-mono text-xs">{k}</span>, <span className="font-mono text-xs break-all">{v}</span>])} />

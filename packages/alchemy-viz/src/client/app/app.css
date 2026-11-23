@@ -1,6 +1,7 @@
 @layer ui-sdk;
 
 @import "tailwindcss" source(none);
+@import "tw-animate-css";
 @import "../../ui/theme.css";
 @import "@xyflow/react/dist/base.css";
 

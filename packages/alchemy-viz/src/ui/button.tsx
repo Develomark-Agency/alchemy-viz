@@ -7,7 +7,7 @@ import { withClass } from "./with-class.ts";
 export type ButtonVariant = "default" | "primary" | "danger" | "ghost";
 export type ButtonSize = "sm" | "md" | "icon" | "icon-sm";
 
-const base = "group/button relative inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border font-medium select-none transition-colors outline-offset-2 disabled:opacity-50 data-disabled:opacity-50 data-pending:cursor-wait [&_svg]:size-3.5 [&_svg]:shrink-0";
+const base = "group/button relative inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border font-medium select-none transition-[background-color,border-color,color,scale] duration-150 ease-out outline-offset-2 active:not-disabled:not-data-disabled:scale-[0.97] motion-reduce:active:scale-100 disabled:opacity-50 data-disabled:opacity-50 data-pending:cursor-wait [&_svg]:size-3.5 [&_svg]:shrink-0";
 
 const variants: Record<ButtonVariant, string> = {
   default: "border-line-strong bg-surface text-fg shadow-xs hover:bg-hover",
@@ -85,4 +85,4 @@ export function IconButton({ label, children, size = "icon-sm", variant = "ghost
   );
 }
 
-export const tooltipClass = "z-50 rounded-md bg-fg px-2 py-1 text-xs font-medium text-canvas shadow-popup origin-(--transform-origin) transition-[opacity,scale] duration-100 data-starting-style:scale-95 data-starting-style:opacity-0 data-ending-style:opacity-0";
+export const tooltipClass = "z-50 rounded-md bg-fg px-2 py-1 text-xs font-medium text-canvas shadow-popup origin-(--transform-origin) transition-[opacity,scale] duration-150 ease-out data-starting-style:scale-95 data-starting-style:opacity-0 data-ending-style:opacity-0";

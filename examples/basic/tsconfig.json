@@ -10,5 +10,5 @@
     "jsx": "react-jsx",
     "types": ["bun", "@cloudflare/workers-types"]
   },
-  "include": ["alchemy.run.ts", "alchemy-viz.config.ts", "src/**/*", "viz/**/*"]
+  "include": ["alchemy.run.ts", "alchemy-viz.config.ts", "src/**/*", "viz/**/*", "scripts/**/*"]
 }

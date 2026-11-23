@@ -31,7 +31,7 @@ function Node({ name, value, path }: { name: string, value: unknown, path: strin
       <TreeItemLabel className="flex h-6 cursor-default items-center gap-1 rounded pr-2 pl-[calc((var(--tree-level)-1)*14px+4px)] font-mono text-xs whitespace-nowrap hover:bg-hover in-focus-visible:bg-hover data-selected:bg-transparent">
         {branch
           ? (
-            <TreeItemIndicator className="flex size-3.5 items-center justify-center text-fg-subtle transition-transform data-expanded:rotate-90">
+            <TreeItemIndicator className="flex size-3.5 items-center justify-center text-fg-subtle transition-transform duration-150 ease-out data-expanded:rotate-90">
               <ChevronRight className="size-3" />
             </TreeItemIndicator>
           )

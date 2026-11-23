@@ -8,9 +8,9 @@ import {
   tableFeatures,
   useTable
 } from "@tanstack/react-table";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useVirtualizer, useWindowVirtualizer } from "@tanstack/react-virtual";
 import { ArrowDown, ArrowUp } from "lucide-react";
-import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef } from "react";
+import { type KeyboardEvent, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { cn } from "./cn.ts";
 import { EmptyState, ErrorBanner, Loading, Spinner } from "./feedback.tsx";
 import { formatTime } from "./format.ts";
@@ -63,6 +63,10 @@ const ROW_HEIGHT = 34;
 /**
  * A sortable, resizable, virtualized table. Pass `onEndReached` and
  * `hasMore` for infinite scrolling over cursor-paginated data.
+ *
+ * `scroll="page"` lets the table grow with the page instead of scrolling
+ * inside a box: the page scrolls, the header sticks under the top bar, and
+ * rows are still virtualized against the window.
  */
 export function DataTable<Row extends RowData>({
   rows,
@@ -78,6 +82,7 @@ export function DataTable<Row extends RowData>({
   hasMore,
   loadingMore,
   maxHeight = 560,
+  scroll = "container",
   className
 }: {
   rows: Row[] | undefined,
@@ -93,6 +98,7 @@ export function DataTable<Row extends RowData>({
   hasMore?: boolean,
   loadingMore?: boolean,
   maxHeight?: number | string,
+  scroll?: "container" | "page",
   className?: string
 }) {
   const data = useMemo(() => rows ?? [], [rows]);
@@ -117,16 +123,35 @@ export function DataTable<Row extends RowData>({
     columnResizeMode: "onChange"
   });
 
+  const page = scroll === "page";
   const scrollRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLTableSectionElement>(null);
+  const [bodyTop, setBodyTop] = useState(0);
   const tableRows = table.getRowModel().rows;
-  const virtualizer = useVirtualizer({
-    count: tableRows.length,
+  // Both are created so hook order stays fixed; the unused one counts nothing.
+  const boxed = useVirtualizer({
+    count: page ? 0 : tableRows.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => ROW_HEIGHT,
     getItemKey: index => tableRows[index]!.id,
     overscan: 12
   });
+  const windowed = useWindowVirtualizer({
+    count: page ? tableRows.length : 0,
+    estimateSize: () => ROW_HEIGHT,
+    getItemKey: index => tableRows[index]!.id,
+    overscan: 12,
+    scrollMargin: bodyTop
+  });
+  const virtualizer = page ? windowed : boxed;
   const items = virtualizer.getVirtualItems();
+
+  // The window virtualizer needs the body's distance from the top of the page.
+  useLayoutEffect(() => {
+    if(!page || !bodyRef.current) return;
+    const top = bodyRef.current.getBoundingClientRect().top + window.scrollY;
+    if(Math.abs(top - bodyTop) > 1) setBodyTop(top);
+  });
   const lastIndex = items.at(-1)?.index ?? -1;
 
   useEffect(() => {
@@ -146,9 +171,9 @@ export function DataTable<Row extends RowData>({
 
   return (
     <div className={cn("flex min-w-0 flex-col", className)}>
-      <div ref={scrollRef} className="relative overflow-auto" style={{ maxHeight }}>
+      <div ref={scrollRef} className={cn("relative", page ? "overflow-x-clip" : "overflow-auto")} style={page ? undefined : { maxHeight }}>
         <table className="grid text-[13px]" style={{ minWidth: "100%", width: table.getTotalSize() }}>
-          <thead className="sticky top-0 z-1 grid bg-surface-2 shadow-[inset_0_-1px_0_var(--av-line)]">
+          <thead className={cn("sticky z-1 grid bg-surface-2 shadow-[inset_0_-1px_0_var(--av-line)]", page ? "top-(--topbar-h)" : "top-0")}>
             {table.getHeaderGroups().map(group => (
               <tr key={group.id} className="flex w-full">
                 {group.headers.map((header, i) => {
@@ -187,7 +212,7 @@ export function DataTable<Row extends RowData>({
               </tr>
             ))}
           </thead>
-          <tbody className="relative grid" style={{ height: virtualizer.getTotalSize() }}>
+          <tbody ref={bodyRef} className="relative grid" style={{ height: virtualizer.getTotalSize() }}>
             {items.map(item => {
               const row = tableRows[item.index]!;
               const selected = selectedId !== undefined && row.id === selectedId;
@@ -201,10 +226,10 @@ export function DataTable<Row extends RowData>({
                   onKeyDown={onRowClick ? e => onRowKey(e, row.original) : undefined}
                   className={cn(
                     "absolute flex w-full border-b border-line outline-offset-[-2px]",
-                    onRowClick && "cursor-pointer hover:bg-hover",
+                    onRowClick && "cursor-pointer transition-colors duration-100 ease-out hover:bg-hover",
                     selected && "bg-accent-soft hover:bg-accent-soft"
                   )}
-                  style={{ height: ROW_HEIGHT, transform: `translateY(${item.start}px)` }}
+                  style={{ height: ROW_HEIGHT, transform: `translateY(${item.start - (page ? bodyTop : 0)}px)` }}
                 >
                   {row.getAllCells().map((cell, i, all) => {
                     const col = byId.get(cell.column.id)!;

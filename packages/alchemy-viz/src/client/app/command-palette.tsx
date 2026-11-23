@@ -36,7 +36,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean, onOpenCh
 
   return (
     <Dialog open={open} onOpenChange={next => onOpenChange(next)}>
-      <DialogContent className="fixed top-[12vh] left-1/2 z-50 w-[min(560px,calc(100vw-32px))] -translate-x-1/2 overflow-hidden rounded-xl border border-line bg-surface p-0 text-fg shadow-popup outline-none transition-[opacity,scale] duration-100 backdrop:bg-black/30 data-starting-style:scale-98 data-starting-style:opacity-0 data-ending-style:opacity-0">
+      <DialogContent className="fixed top-[12vh] left-1/2 z-50 w-[min(560px,calc(100vw-32px))] -translate-x-1/2 overflow-hidden rounded-xl border border-line bg-surface p-0 text-fg shadow-popup outline-none backdrop:bg-black/30">
         <DialogTitle className="sr-only">Search</DialogTitle>
         <Command onAction={go} loop>
           <div className="flex items-center gap-2 border-b border-line px-3.5">

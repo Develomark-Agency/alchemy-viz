@@ -1,5 +1,5 @@
 import { defineView } from "alchemy-viz/client";
-import { Badge, Button, type Column, ConfirmButton, DataTable, ErrorBanner, Input, Panel, Switch } from "alchemy-viz/ui";
+import { Button, type Column, ConfirmButton, DataTable, ErrorBanner, Input, Panel, Path, Switch } from "alchemy-viz/ui";
 import { Plus } from "lucide-react";
 import { useState } from "react";
 import type server from "./server.ts";
@@ -11,7 +11,7 @@ interface Flag {
   default: boolean | undefined
 }
 
-export default defineView<typeof server>(({ resource, api }) => {
+export default defineView<typeof server>(({ resource, stack, api }) => {
   const flags = api.flags.useQuery();
   const set = api.set.useMutation();
   const remove = api.remove.useMutation();
@@ -24,7 +24,9 @@ export default defineView<typeof server>(({ resource, api }) => {
       header: "Source",
       size: 220,
       accessor: f => (f.declared ? 0 : 1),
-      cell: f => (f.declared ? <Badge>declared · default {String(f.default)}</Badge> : <Badge tone="accent">added here</Badge>)
+      cell: f => (f.declared
+        ? <span className="text-[13px] text-fg-muted">Declared, default <span className="font-mono text-xs">{String(f.default)}</span></span>
+        : <span className="text-[13px] text-fg-muted">Added here</span>)
     },
     {
       id: "enabled",
@@ -50,7 +52,7 @@ export default defineView<typeof server>(({ resource, api }) => {
   }
 
   return (
-    <Panel title="Feature flags" actions={<span className="font-mono text-xs text-fg-subtle">{resource.attr.file}</span>} flush>
+    <Panel title="Feature flags" actions={<Path path={resource.attr.file} home={stack.home} className="max-w-80 text-fg-subtle" />} flush>
       <ErrorBanner error={set.error ?? remove.error} className="m-3" />
       <DataTable rows={flags.data} loading={flags.isPending} error={flags.error} columns={columns} getRowId={f => f.name} empty="No flags" />
       <form

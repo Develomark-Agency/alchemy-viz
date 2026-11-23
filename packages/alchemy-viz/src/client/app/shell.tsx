@@ -1,4 +1,4 @@
-import { Outlet } from "@tanstack/react-router";
+import { Outlet, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
 import { Banner, EmptyState, Loading } from "../../ui/index.ts";
 import { CommandPalette } from "./command-palette.tsx";
@@ -17,6 +17,7 @@ export function Shell() {
 function Layout() {
   const stack = useStack();
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const pathname = useRouterState({ select: s => s.location.pathname });
 
   return (
     <div className="min-h-dvh">
@@ -25,7 +26,12 @@ function Layout() {
         <div className="mx-auto flex max-w-[1320px] flex-col gap-4">
           {stack.data && stack.error && <Banner tone="warn">Lost contact with the stack state: {stack.error.message}</Banner>}
           {stack.data
-            ? <Outlet />
+            ? (
+              // Keyed by path: each page fades up on arrival instead of swapping in place.
+              <div key={pathname} className="animate-in fade-in slide-in-from-bottom-1 duration-200 ease-out">
+                <Outlet />
+              </div>
+            )
             : stack.error
               ? <EmptyState title="Couldn't read the stack">{stack.error.message}</EmptyState>
               : <Loading label="Reading stack state…" />}

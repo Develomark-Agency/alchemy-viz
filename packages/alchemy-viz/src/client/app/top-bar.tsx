@@ -2,8 +2,9 @@ import { Menu, MenuContent, MenuGroupLabel, MenuItem, MenuItemIndicator, MenuRad
 import { NavigationMenu, NavigationMenuContent, NavigationMenuItem, NavigationMenuList, NavigationMenuTrigger } from "@ui-sdk/react/navigation-menu";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Activity, Check, ChevronDown, ChevronsUpDown, Layers, LayoutGrid, Monitor, Moon, RefreshCw, ScrollText, Search, Sun } from "lucide-react";
-import { type ReactNode, useContext, useState } from "react";
-import { cn, IconButton, Kbd } from "../../ui/index.ts";
+import { type ReactNode, useContext, useRef, useState } from "react";
+import { flushSync } from "react-dom";
+import { cn, IconButton, Kbd, Path } from "../../ui/index.ts";
 import { Megamenu } from "./megamenu.tsx";
 import { setTheme, storedTheme, type ThemeChoice } from "./theme.ts";
 import { StageContext, useRefresh, useStack } from "./use-stack.ts";
@@ -16,17 +17,12 @@ const navItem = cn(
   "data-[status=active]:text-fg data-[status=active]:after:absolute data-[status=active]:after:inset-x-2.5 data-[status=active]:after:-bottom-[11px] data-[status=active]:after:h-0.5 data-[status=active]:after:rounded-full data-[status=active]:after:bg-fg"
 );
 
-const popup = "z-50 min-w-56 rounded-lg border border-line bg-surface p-1 text-[13px] shadow-popup outline-none origin-(--transform-origin) transition-[opacity,scale] duration-100 data-starting-style:scale-97 data-starting-style:opacity-0 data-ending-style:opacity-0";
+const popup = "z-50 min-w-56 rounded-lg border border-line bg-surface p-1 text-[13px] shadow-popup outline-none origin-(--transform-origin) transition-[opacity,scale] duration-150 ease-out data-starting-style:scale-97 data-starting-style:opacity-0 data-ending-style:opacity-0";
 const menuItem = "flex h-8 cursor-default items-center gap-2 rounded-md px-2 outline-none select-none data-disabled:opacity-50 data-highlighted:bg-hover [&_svg]:size-3.5";
 const groupLabel = "px-2 pt-1.5 pb-1 text-[11px] font-medium text-fg-subtle";
 
 function NavLabel({ children }: { children: ReactNode }) {
   return <span className="hidden md:inline">{children}</span>;
-}
-
-function monogram(name: string) {
-  const caps = name.match(/[A-Z0-9]/g)?.join("") ?? "";
-  return (caps.length >= 2 ? caps : name).slice(0, 2).toUpperCase();
 }
 
 function ProjectSwitcher() {
@@ -37,16 +33,16 @@ function ProjectSwitcher() {
   if(!stack) return null;
   return (
     <Menu>
-      <MenuTrigger className="flex h-8 min-w-0 items-center gap-2 rounded-md pr-1.5 pl-1 transition-colors outline-offset-[-2px] hover:bg-hover data-open:bg-hover">
-        <span className="flex size-5 shrink-0 items-center justify-center rounded-[5px] bg-fg font-mono text-[10px] font-semibold text-canvas">{monogram(stack.name)}</span>
-        <span className="truncate text-[13px] font-medium">{stack.name}</span>
-        <span className="hidden h-5 items-center rounded-full bg-accent-soft px-2 text-[11px] font-medium text-accent-soft-fg sm:inline-flex">{stack.stage}</span>
+      <MenuTrigger className="flex h-8 min-w-0 items-center gap-1.5 rounded-md px-2 text-[13px] transition-colors duration-150 ease-out outline-offset-[-2px] hover:bg-hover data-open:bg-hover">
+        <span className="truncate font-medium">{stack.name}</span>
+        <span className="hidden text-fg-subtle sm:inline">/</span>
+        <span className="hidden truncate font-mono text-xs text-fg-muted sm:inline">{stack.stage}</span>
         <ChevronsUpDown className="size-3.5 shrink-0 text-fg-subtle" />
       </MenuTrigger>
       <MenuContent align="start" sideOffset={6} className={popup}>
-        <div className="px-2 pt-1.5 pb-2">
+        <div className="flex flex-col gap-0.5 px-2 pt-1.5 pb-2">
           <div className="font-medium">{stack.name}</div>
-          <div className="truncate font-mono text-[11px] text-fg-subtle" title={stack.root}>{stack.root}</div>
+          <Path path={stack.root} home={stack.home} className="max-w-64 text-[11px] text-fg-subtle" />
         </div>
         <MenuSeparator className="my-1 h-px bg-line" />
         <MenuRadioGroup value={stack.stage} onValueChange={value => setStage(String(value))}>
@@ -74,10 +70,11 @@ const themeIcons = { system: Monitor, light: Sun, dark: Moon };
 
 function ThemeMenu() {
   const [theme, setThemeState] = useState<ThemeChoice>(storedTheme);
+  const trigger = useRef<HTMLButtonElement>(null);
   const Icon = themeIcons[theme];
   return (
     <Menu>
-      <MenuTrigger aria-label="Theme" className="flex size-8 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-hover hover:text-fg data-open:bg-hover [&_svg]:size-3.5">
+      <MenuTrigger ref={trigger} aria-label="Theme" className="flex size-8 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-hover hover:text-fg data-open:bg-hover [&_svg]:size-3.5">
         <Icon />
       </MenuTrigger>
       <MenuContent align="end" sideOffset={6} className={cn(popup, "min-w-40")}>
@@ -85,8 +82,11 @@ function ThemeMenu() {
           value={theme}
           onValueChange={value => {
             const choice = value as ThemeChoice;
-            setTheme(choice);
-            setThemeState(choice);
+            const box = trigger.current?.getBoundingClientRect();
+            setTheme(choice, {
+              origin: box && { x: box.left + box.width / 2, y: box.top + box.height / 2 },
+              update: () => flushSync(() => setThemeState(choice))
+            });
           }}
         >
           <MenuGroupLabel className={groupLabel}>Theme</MenuGroupLabel>
@@ -139,7 +139,7 @@ export function TopBar({ onSearch }: { onSearch: () => void }) {
               <NavigationMenuTrigger aria-label="Resources" data-status={onResource ? "active" : undefined} className={cn(navItem, "data-open:bg-hover data-open:text-fg")}>
                 <Layers />
                 <NavLabel>Resources</NavLabel>
-                <ChevronDown className="!size-3 text-fg-subtle transition-transform duration-150 in-data-open:rotate-180" />
+                <ChevronDown className="!size-3 text-fg-subtle transition-transform duration-200 ease-out in-data-open:rotate-180" />
               </NavigationMenuTrigger>
               <NavigationMenuContent
                 anchor="#viz-top-bar"
@@ -147,7 +147,7 @@ export function TopBar({ onSearch }: { onSearch: () => void }) {
                 align="start"
                 sideOffset={0}
                 collisionPadding={0}
-                className="z-40 w-(--anchor-width) border-b border-line bg-surface shadow-[0_18px_40px_-16px_rgb(0_0_0/0.25)] outline-none transition-[opacity,translate] duration-150 data-ending-style:-translate-y-1 data-ending-style:opacity-0 data-starting-style:-translate-y-1 data-starting-style:opacity-0 motion-reduce:transition-none"
+                className="z-40 w-(--anchor-width) border-b border-line bg-surface shadow-[0_18px_40px_-16px_rgb(0_0_0/0.25)] outline-none transition-[opacity,translate] duration-200 ease-out data-ending-style:-translate-y-1 data-ending-style:opacity-0 data-starting-style:-translate-y-1 data-starting-style:opacity-0 motion-reduce:transition-none"
               >
                 {data && <Megamenu stack={data.stack} onNavigate={() => setOpen(null)} />}
               </NavigationMenuContent>
@@ -190,7 +190,7 @@ export function TopBar({ onSearch }: { onSearch: () => void }) {
       <div
         aria-hidden
         onClick={() => setOpen(null)}
-        className={cn("fixed inset-x-0 top-[52px] bottom-0 z-30 bg-black/25 transition-opacity duration-150", resourcesOpen ? "opacity-100" : "pointer-events-none opacity-0")}
+        className={cn("fixed inset-x-0 top-[52px] bottom-0 z-30 bg-black/25 transition-opacity duration-200 ease-out", resourcesOpen ? "opacity-100" : "pointer-events-none opacity-0")}
       />
     </>
   );

@@ -4,6 +4,7 @@ import { type Api, defineView, useUrlState } from "../../../client/index.tsx";
 import {
   Button,
   CodeBlock,
+  ContentPreview,
   type Column,
   ConfirmButton,
   DataTable,
@@ -18,8 +19,10 @@ import {
   LinkButton,
   Loading,
   Panel,
+  previewKind,
   Split,
-  toast
+  toast,
+  useSplitSideBySide
 } from "../../../ui/index.ts";
 import { useQuery } from "@tanstack/react-query";
 import type server from "./server.ts";
@@ -119,7 +122,7 @@ export default defineView<typeof server>(({ api }) => {
       flush
     >
       <ErrorBanner error={put.error} className="m-3" />
-      <DataTable<Entry>
+      <ObjectTable
         rows={entries}
         columns={columns}
         getRowId={e => e.key}
@@ -131,7 +134,7 @@ export default defineView<typeof server>(({ api }) => {
         hasMore={pages.hasNextPage}
         loadingMore={pages.isFetchingNextPage}
         onEndReached={() => pages.fetchNextPage()}
-        maxHeight={600}
+        scroll="page"
       />
     </Panel>
   );
@@ -140,13 +143,26 @@ export default defineView<typeof server>(({ api }) => {
   return <Split leftWidth={560} left={list} right={<ObjectDetail key={selected} objectKey={selected} api={api} onClose={() => setSelected(undefined)} />} />;
 });
 
+/**
+ * Beside an open object the list is narrow, so it keeps only name and
+ * size; type and date are in the detail panel. Stacked, it shows them all.
+ */
+function ObjectTable({ columns, ...rest }: Parameters<typeof DataTable<Entry>>[0]) {
+  const sideBySide = useSplitSideBySide();
+  return <DataTable<Entry> {...rest} columns={sideBySide ? columns.filter(c => c.id === "name" || c.id === "size") : columns} />;
+}
+
 function ObjectDetail({ objectKey, api, onClose }: { objectKey: string, api: R2Api, onClose: () => void }) {
   const head = api.head.useQuery({ key: objectKey });
   const del = api.delete.useMutation();
   const o = head.data;
-  const isImage = !!o?.contentType?.startsWith("image/");
+  // Browsers can't draw HEIC or TIFF, so those fall through to "no preview".
+  const isImage = /^image\/(png|jpeg|gif|webp|avif|svg\+xml|bmp|x-icon|vnd\.microsoft\.icon)$/.test(o?.contentType ?? "");
+  const isPdf = o?.contentType === "application/pdf";
+  const media = o?.contentType?.match(/^(audio|video)\//)?.[1] as "audio" | "video" | undefined;
   const language = languageFor(o?.contentType);
-  const isText = !!o && o.size <= PREVIEW_LIMIT && (o.contentType?.startsWith("text/") || language !== "text" || !o.contentType);
+  const kind = o && o.size <= PREVIEW_LIMIT ? previewKind(o.contentType, o.key) : undefined;
+  const isText = !!o && o.size <= PREVIEW_LIMIT && (!!kind || o.contentType?.startsWith("text/") || language !== "text" || !o.contentType);
 
   const text = useQuery({
     queryKey: [...api.object.key({ key: objectKey }), o?.etag],
@@ -160,6 +176,7 @@ function ObjectDetail({ objectKey, api, onClose }: { objectKey: string, api: R2A
 
   return (
     <Panel
+      className="animate-in fade-in duration-150 ease-out"
       title={<span className="truncate font-mono text-xs">{o.key.split("/").pop()}</span>}
       actions={(
         <>
@@ -192,9 +209,16 @@ function ObjectDetail({ objectKey, api, onClose }: { objectKey: string, api: R2A
           ]}
         />
         {o.customMetadata && <JsonInspector value={o.customMetadata} label="Custom metadata" />}
-        {isImage && <img src={api.object.url({ key: objectKey })} alt={o.key} className="max-h-96 max-w-full rounded-md border border-line object-contain" />}
-        {isText && (text.data === undefined ? <Loading /> : <CodeBlock code={text.data || "(empty)"} language={language} />)}
-        {!isImage && !isText && <p className="text-[13px] text-fg-muted">No preview for this type. Download it to open it.</p>}
+        {isImage && kind !== "svg" && <img src={api.object.url({ key: objectKey })} alt={o.key} className="max-h-96 max-w-full rounded-md border border-line object-contain" />}
+        {isText && (text.data === undefined
+          ? <Loading />
+          : kind
+            ? <ContentPreview text={text.data} kind={kind} src={api.object.url({ key: objectKey })} />
+            : <CodeBlock code={text.data || "(empty)"} language={language} />)}
+        {isPdf && <iframe title={o.key} src={api.object.url({ key: objectKey })} className="h-[560px] w-full rounded-md border border-line bg-white" />}
+        {media === "audio" && <audio controls src={api.object.url({ key: objectKey })} className="w-full" />}
+        {media === "video" && <video controls src={api.object.url({ key: objectKey })} className="max-h-96 w-full rounded-md border border-line bg-black" />}
+        {!isImage && !isText && !isPdf && !media && <p className="text-[13px] text-fg-muted">No preview for this type. Download it to open it.</p>}
       </div>
     </Panel>
   );

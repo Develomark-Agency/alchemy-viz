@@ -50,6 +50,7 @@ export default defineView<typeof server>(({ api, resource }) => {
       <TabsPanel value="tables">
         <Split
           leftWidth={240}
+          sticky="left"
           left={(
             <Panel title="Tables" flush>
               {tables.error
@@ -127,7 +128,7 @@ function TableBrowser({ table, api }: { table: string, api: D1Api }) {
         loadingMore={pages.isFetchingNextPage}
         onEndReached={() => pages.fetchNextPage()}
         footer={first && `${rows?.length ?? 0} of ${first.total} rows`}
-        maxHeight={600}
+        maxHeight="calc(100dvh - var(--topbar-h) - 260px)"
       />
     </Panel>
   );

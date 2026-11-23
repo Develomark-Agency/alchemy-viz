@@ -7,6 +7,7 @@
  * `alchemy dev` is running. Works with any state store the stack
  * configures (local files, Cloudflare, ...).
  */
+import { homedir } from "node:os";
 import type { ResourceInfo, StackInfo } from "../types.ts";
 import { makeImportFromProject } from "./project.ts";
 
@@ -74,6 +75,7 @@ export function makeStackReader(root: string, entrypoint: string) {
       stage,
       stages: stages.includes(stage) ? stages : [stage, ...stages],
       root,
+      home: homedir(),
       output: output ?? null,
       resources
     };

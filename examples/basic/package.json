@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "alchemy dev",
     "viz": "alchemy-viz",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "seed": "bun scripts/seed.ts"
   },
   "dependencies": {
     "@alchemy.run/cloudflare": "2.0.0-beta.87",

@@ -19,6 +19,12 @@ In one terminal, start the example stack:
 cd examples/basic && bun run dev
 ```
 
+Optionally fill the local resources with varied test data (real images and PDFs, a small shop database, KV keys of every shape):
+
+```bash
+cd examples/basic && bun run seed
+```
+
 In another, start the dashboard:
 
 ```bash

@@ -10,8 +10,8 @@ import { typeLabel } from "./type-label.ts";
 type Scope = "all" | "local" | "cloud";
 
 function plural(name: string) {
-  if(/y$/.test(name)) return `${name.slice(0, -1)}ies`;
-  if(/s$/.test(name)) return name;
+  if(name.endsWith("y")) return `${name.slice(0, -1)}ies`;
+  if(name.endsWith("s")) return name;
   return `${name}s`;
 }
 
@@ -20,7 +20,7 @@ function detail(r: ResourceInfo) {
   const url = r.attr?.url;
   if(typeof url === "string") return url.replace(/^https?:\/\//, "");
   if(r.fqn !== r.logicalId) return r.fqn;
-  return r.mode === "local" ? "local simulator" : r.mode === "live" ? "cloud" : r.status;
+  return r.mode === "local" ? "Local simulator" : r.mode === "live" ? "Cloud" : typeLabel(r.type).name;
 }
 
 function group(resources: ResourceInfo[]) {
@@ -93,7 +93,7 @@ export function Megamenu({ stack, onNavigate }: { stack: StackInfo, onNavigate: 
           {groups.map(({ provider, types }, i) => (
             <section key={provider} className={cn("min-w-0 px-5 py-4", i === 0 ? "lg:flex-1" : "border-line max-lg:border-t lg:w-64 lg:border-l")}>
               <h3 className="mb-3 text-[11px] font-semibold tracking-wider text-fg-subtle uppercase">{provider}</h3>
-              <div className={cn("grid gap-x-4 gap-y-3", i === 0 && "grid-cols-[repeat(auto-fill,minmax(190px,1fr))]")}>
+              <div className={cn("grid gap-x-4 gap-y-3", i === 0 && "grid-cols-[repeat(auto-fill,minmax(200px,260px))]")}>
                 {types.map(([type, resources]) => (
                   <div key={type} className="min-w-0">
                     <div className="px-2 pb-1.5 text-xs text-fg-subtle">{plural(typeLabel(type).name)}</div>
@@ -106,15 +106,27 @@ export function Megamenu({ stack, onNavigate }: { stack: StackInfo, onNavigate: 
                               current={current}
                               onClick={onNavigate}
                               render={<Link to="/r/$fqn" params={{ fqn: r.fqn }} />}
-                              className="flex items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors outline-offset-[-2px] hover:bg-hover aria-[current=page]:bg-hover"
+                              className="group/item flex items-center gap-3 rounded-lg p-1.5 pr-2 transition-colors duration-150 ease-out outline-offset-[-2px] hover:bg-hover aria-[current=page]:bg-hover"
                             >
-                              <ResourceIcon type={r.type} size={22} />
-                              <span className="flex min-w-0 flex-col">
-                                <span className="truncate text-[13px] font-medium">{r.fqn}</span>
-                                <span className="truncate text-[11.5px] text-fg-subtle">{detail(r)}</span>
+                              <span className="relative shrink-0">
+                                <ResourceIcon type={r.type} size={32} className="rounded-md" />
+                                {r.mode && (
+                                  <span
+                                    title={r.mode === "local" ? "Running locally" : "Cloud only"}
+                                    className={cn(
+                                      "absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-surface transition-[box-shadow] group-hover/item:ring-hover group-aria-[current=page]/item:ring-hover",
+                                      r.mode === "local" ? "bg-ok" : "bg-warn"
+                                    )}
+                                  />
+                                )}
                               </span>
-                              {r.mode === "local" && <span className="ml-auto size-1.5 shrink-0 rounded-full bg-ok" title="Running locally" />}
-                              {r.mode === "live" && <span className="ml-auto text-[10px] font-semibold text-warn uppercase">cloud</span>}
+                              <span className="flex min-w-0 flex-col gap-0.5">
+                                <span className="flex items-center gap-1 text-[13px] leading-tight font-medium">
+                                  <span className="truncate">{r.fqn}</span>
+                                  <ArrowRight className="size-3 shrink-0 -translate-x-1 text-fg-subtle opacity-0 transition-[opacity,translate] duration-150 ease-out group-hover/item:translate-x-0 group-hover/item:opacity-100 group-focus-visible/item:translate-x-0 group-focus-visible/item:opacity-100 motion-reduce:translate-x-0" />
+                                </span>
+                                <span className="truncate text-[11.5px] leading-tight text-fg-subtle">{detail(r)}</span>
+                              </span>
                             </NavigationMenuLink>
                           </li>
                         );

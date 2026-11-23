@@ -93,7 +93,7 @@ export default defineView<typeof server>(({ api }) => {
               hasMore={pages.hasNextPage}
               loadingMore={pages.isFetchingNextPage}
               onEndReached={() => pages.fetchNextPage()}
-              maxHeight={600}
+              scroll="page"
             />
           </Panel>
         )}
@@ -148,6 +148,7 @@ function KeyDetail({ name, api, onDeleted }: { name: string, api: KvApi, onDelet
 
   return (
     <Panel
+      className="animate-in fade-in duration-150 ease-out"
       title={<span className="truncate font-mono text-xs">{name}</span>}
       actions={(
         <ConfirmButton

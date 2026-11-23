@@ -1,4 +1,4 @@
-import { type CSSProperties, type ReactNode, useLayoutEffect, useRef, useState } from "react";
+import { createContext, type CSSProperties, type ReactNode, useContext, useLayoutEffect, useRef, useState } from "react";
 import { cn } from "./cn.ts";
 
 export function Page({
@@ -52,7 +52,7 @@ export function Panel({
   bodyClassName?: string
 }) {
   return (
-    <section className={cn("flex min-w-0 flex-col overflow-hidden rounded-lg border border-line bg-surface", className)}>
+    <section className={cn("flex min-w-0 flex-col overflow-clip rounded-lg border border-line bg-surface", className)}>
       {(title || actions) && (
         <div className="flex min-h-11 flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-2">
           {title ? <h2 className="flex min-w-0 items-center gap-2 text-[13px] font-semibold">{title}</h2> : <span />}
@@ -65,11 +65,32 @@ export function Panel({
   );
 }
 
+const SplitContext = createContext(false);
+
+/** True inside a Split that currently shows its columns side by side. */
+export function useSplitSideBySide() {
+  return useContext(SplitContext);
+}
+
 /**
  * List and detail side by side. Stacks when its own width can't fit the
- * list plus `minRight` for the detail, wherever it's placed.
+ * list plus `minRight` for the detail, wherever it's placed. Side by side,
+ * the `sticky` column stays in view under the top bar while the page
+ * scrolls the other one.
  */
-export function Split({ left, right, leftWidth = 320, minRight = 420 }: { left: ReactNode, right: ReactNode, leftWidth?: number, minRight?: number }) {
+export function Split({
+  left,
+  right,
+  leftWidth = 320,
+  minRight = 420,
+  sticky = "right"
+}: {
+  left: ReactNode,
+  right: ReactNode,
+  leftWidth?: number,
+  minRight?: number,
+  sticky?: "left" | "right" | "none"
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const [wide, setWide] = useState(false);
 
@@ -81,15 +102,18 @@ export function Split({ left, right, leftWidth = 320, minRight = 420 }: { left: 
     return () => observer.disconnect();
   }, [leftWidth, minRight]);
 
+  const stick = "sticky top-[calc(var(--topbar-h)+16px)] max-h-[calc(100dvh-var(--topbar-h)-32px)] overflow-y-auto overscroll-contain rounded-lg";
   return (
-    <div
-      ref={ref}
-      className={cn("grid min-w-0 items-start gap-4", wide && "grid-cols-[var(--split-left)_minmax(0,1fr)]")}
-      style={{ "--split-left": `${leftWidth}px` } as CSSProperties}
-    >
-      <div className="min-w-0">{left}</div>
-      <div className="min-w-0">{right}</div>
-    </div>
+    <SplitContext.Provider value={wide}>
+      <div
+        ref={ref}
+        className={cn("grid min-w-0 items-start gap-4", wide && "grid-cols-[var(--split-left)_minmax(0,1fr)]")}
+        style={{ "--split-left": `${leftWidth}px` } as CSSProperties}
+      >
+        <div className={cn("min-w-0", wide && sticky === "left" && stick)}>{left}</div>
+        <div className={cn("min-w-0", wide && sticky === "right" && stick)}>{right}</div>
+      </div>
+    </SplitContext.Provider>
   );
 }
 

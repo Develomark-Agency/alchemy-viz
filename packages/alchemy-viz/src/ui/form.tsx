@@ -51,7 +51,7 @@ export function Textarea({ className, ...rest }: ComponentProps<typeof TextareaP
 export function Switch({ className, ...rest }: Omit<ComponentProps<typeof SwitchPart>, "children">) {
   return (
     <SwitchPart {...rest} className={withClass("relative inline-flex h-5 w-8.5 shrink-0 cursor-pointer items-center rounded-full border border-line-strong bg-surface-2 p-0.5 transition-colors data-checked:border-accent data-checked:bg-accent data-disabled:cursor-default data-disabled:opacity-50", className)}>
-      <SwitchThumb className="size-3.5 rounded-full bg-fg-subtle shadow-xs transition-[translate,background-color] duration-150 data-checked:translate-x-3.5 data-checked:bg-accent-fg rtl:data-checked:-translate-x-3.5" />
+      <SwitchThumb className="size-3.5 rounded-full bg-fg-subtle shadow-xs transition-[translate,background-color] duration-200 ease-out data-checked:translate-x-3.5 data-checked:bg-accent-fg rtl:data-checked:-translate-x-3.5" />
     </SwitchPart>
   );
 }
@@ -104,7 +104,7 @@ function labelText(o: Option | undefined) {
   return o.text ?? (typeof o.label === "string" ? o.label : o.value);
 }
 
-export const popupList = "z-50 max-h-[min(var(--available-height),320px)] min-w-(--anchor-width) overflow-y-auto rounded-lg border border-line bg-surface p-1 text-[13px] shadow-popup outline-none origin-(--transform-origin) transition-[opacity,scale] duration-100 data-starting-style:scale-97 data-starting-style:opacity-0 data-ending-style:opacity-0";
+export const popupList = "z-50 max-h-[min(var(--available-height),320px)] min-w-(--anchor-width) overflow-y-auto rounded-lg border border-line bg-surface p-1 text-[13px] shadow-popup outline-none origin-(--transform-origin) transition-[opacity,scale] duration-150 ease-out data-starting-style:scale-97 data-starting-style:opacity-0 data-ending-style:opacity-0";
 
 export const popupItem = "flex h-7 cursor-default items-center gap-2 rounded-md px-2 outline-none select-none data-disabled:opacity-50 data-highlighted:bg-hover";
 
@@ -129,7 +129,7 @@ export function SegmentedControl<T extends string>({
       onValueChange={v => v !== null && onValueChange(v)}
       className={cn("relative inline-flex h-8 items-center rounded-md border border-line bg-surface-2 p-0.5", className)}
     >
-      <SegmentedControlIndicator className="absolute top-(--segmented-control-indicator-top) left-(--segmented-control-indicator-left) h-(--segmented-control-indicator-height) w-(--segmented-control-indicator-width) rounded-[5px] bg-surface shadow-xs ring-1 ring-line transition-[left,width] duration-150 motion-reduce:transition-none" />
+      <SegmentedControlIndicator className="absolute top-(--segmented-control-indicator-top) left-(--segmented-control-indicator-left) h-(--segmented-control-indicator-height) w-(--segmented-control-indicator-width) rounded-[5px] bg-surface shadow-xs ring-1 ring-line transition-[left,width] duration-200 ease-in-out motion-reduce:transition-none" />
       {options.map(o => (
         <SegmentedControlItem key={o.value} value={o.value} className="relative z-1 inline-flex h-full items-center gap-1.5 rounded-[5px] px-2.5 text-xs font-medium text-fg-muted transition-colors hover:text-fg data-checked:text-fg [&_svg]:size-3.5">
           {o.label}

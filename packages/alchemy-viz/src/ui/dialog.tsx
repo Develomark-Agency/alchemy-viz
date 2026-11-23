@@ -9,8 +9,8 @@ import { withClass } from "./with-class.ts";
 
 export { DialogClose, DialogTrigger };
 
-const backdrop = "fixed inset-0 z-40 bg-black/30 backdrop-blur-[1px] transition-opacity duration-150 data-starting-style:opacity-0 data-ending-style:opacity-0";
-const content = "fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-32px)] w-[min(560px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-line bg-surface text-fg shadow-popup outline-none transition-[opacity,scale] duration-150 data-starting-style:scale-97 data-starting-style:opacity-0 data-ending-style:scale-97 data-ending-style:opacity-0 motion-reduce:transition-none";
+const backdrop = "fixed inset-0 z-40 bg-black/30 backdrop-blur-[1px] transition-opacity duration-200 ease-out data-starting-style:opacity-0 data-ending-style:opacity-0";
+const content = "fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-32px)] w-[min(560px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-line bg-surface text-fg shadow-popup outline-none transition-[opacity,scale] duration-200 ease-out data-starting-style:scale-96 data-starting-style:opacity-0 data-ending-style:scale-96 data-ending-style:opacity-0 motion-reduce:transition-none";
 
 export function Dialog(props: ComponentProps<typeof DialogPart>) {
   return <DialogPart {...props} />;
