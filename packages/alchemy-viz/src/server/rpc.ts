@@ -6,8 +6,7 @@
  */
 import { statSync } from "node:fs";
 import { pathToFileURL } from "node:url";
-import type { ServerDefinition } from "./define.ts";
-import type { HandlerContext } from "./define.ts";
+import { type HandlerContext, parseInput, type ServerDefinition } from "./define.ts";
 
 export async function loadServerModule(file: string): Promise<ServerDefinition> {
   const version = statSync(file).mtimeMs;
@@ -19,26 +18,13 @@ export async function loadServerModule(file: string): Promise<ServerDefinition> 
   return def;
 }
 
-function isEffect(value: unknown): boolean {
-  return typeof value === "object" &&
-  value !== null &&
-  Object.getOwnPropertySymbols(value).some(s => s.description?.startsWith("effect/Effect") || s.description === "~effect/Effect");
-}
-
-export async function callHandler(
-  file: string,
-  name: string,
-  input: unknown,
-  ctx: HandlerContext): Promise<unknown> {
+export async function callHandler(file: string, name: string, input: unknown, ctx: HandlerContext): Promise<unknown> {
   const def = await loadServerModule(file);
-  const handler = def.handlers[name];
-  if(typeof handler !== "function") {
+  const h = def.handlers[name];
+  if(typeof h !== "function") {
     throw new Error(`No handler '${name}' in ${file}. Available: ${Object.keys(def.handlers).join(", ")}`);
   }
-  const result = await handler(input, ctx);
-  if(isEffect(result)) {
-    const Effect = await ctx.importFromProject("effect/Effect");
-    return Effect.runPromise(result);
-  }
-  return result;
+  const result = await h(await parseInput(h, input), ctx);
+  const Effect = await ctx.importFromProject("effect/Effect");
+  return Effect.isEffect(result) ? Effect.runPromise(result) : result;
 }

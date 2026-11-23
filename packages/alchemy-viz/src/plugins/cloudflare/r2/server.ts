@@ -1,4 +1,5 @@
-import { defineServer, type HandlerContext, requireResource } from "../../../server/define.ts";
+import { z } from "zod";
+import { defineServer, type HandlerContext, handler, requireResource } from "../../../server/define.ts";
 import type { R2Bucket, R2Object } from "../bindings.ts";
 import { localBinding } from "../runtime.ts";
 
@@ -26,13 +27,14 @@ function info(o: R2Object): ObjectInfo {
   };
 }
 
+const key = z.object({ key: z.string().min(1) });
+
 export default defineServer({
   /** One level of the bucket: "folders" (common prefixes) and objects under `prefix`. */
-  list: async (input: { prefix?: string, cursor?: string }, ctx) => {
-    const b = await bucket(ctx);
-    const page = await b.list({
+  list: handler(z.object({ prefix: z.string().default(""), cursor: z.string().optional() }), async (input, ctx) => {
+    const page = await (await bucket(ctx)).list({
       prefix: input.prefix || undefined,
-      cursor: input.cursor || undefined,
+      cursor: input.cursor,
       delimiter: "/",
       limit: 200,
       include: ["httpMetadata", "customMetadata"]
@@ -42,15 +44,15 @@ export default defineServer({
       objects: page.objects.map(info),
       cursor: page.truncated ? page.cursor : undefined
     };
-  },
+  }),
 
-  head: async (input: { key: string }, ctx) => {
+  head: handler(key, async (input, ctx) => {
     const o = await (await bucket(ctx)).head(input.key);
     return o ? info(o) : null;
-  },
+  }),
 
   /** The object's bytes, for previews (`<img src>`) and downloads. */
-  object: async (input: { key: string, download?: boolean }, ctx) => {
+  object: handler(key.extend({ download: z.boolean().optional() }), async (input, ctx) => {
     const o = await (await bucket(ctx)).get(input.key);
     if(!o) return new Response("Not found", { status: 404 });
     const name = input.key.split("/").pop() || "object";
@@ -61,20 +63,19 @@ export default defineServer({
         ...(input.download ? { "content-disposition": `attachment; filename="${name.replace(/"/g, "")}"` } : {})
       }
     });
-  },
+  }),
 
   /** Upload from the browser; the body arrives base64-encoded in JSON. */
-  put: async (input: { key: string, base64: string, contentType?: string }, ctx) => {
-    if(!input.key) throw new Error("Key is required.");
+  put: handler(key.extend({ base64: z.string(), contentType: z.string().optional() }), async (input, ctx) => {
     const bytes = Uint8Array.from(Buffer.from(input.base64, "base64"));
     const o = await (await bucket(ctx)).put(input.key, bytes, {
       httpMetadata: { contentType: input.contentType || "application/octet-stream" }
     });
     return info(o);
-  },
+  }),
 
-  delete: async (input: { key: string }, ctx) => {
+  delete: handler(key, async (input, ctx) => {
     await (await bucket(ctx)).delete(input.key);
-    return { ok: true };
-  }
+    return { key: input.key };
+  })
 });

@@ -4,35 +4,47 @@
  * plugin views.
  */
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { createServer as createNetServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import tailwind from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { createServer as createVite } from "vite";
 import type { ResourceInfo, StackInfo } from "../types.ts";
-import type { HandlerContext } from "./define.ts";
+import { type HandlerContext, InputError } from "./define.ts";
 import { readLogs } from "./logs.ts";
 import { type LoadedConfig, makeImportFromProject, viewFor } from "./project.ts";
-import { registryPlugin } from "./registry-plugin.ts";
+import { registryPlugin, tailwindSourcesPlugin } from "./registry-plugin.ts";
 import { callHandler } from "./rpc.ts";
 import { makeStackReader } from "./stack.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const appRoot = resolve(here, "../client/app");
+const stylesheet = join(appRoot, "app.css");
 const packageRoot = resolve(here, "../..");
+
+// One copy of each for the shell and every plugin view, or hooks and
+// contexts (React, Query, Router) stop working across the boundary.
+const SHARED = [
+  "react",
+  "react-dom",
+  "@tanstack/react-query",
+  "@tanstack/react-router",
+  "@ui-sdk/react",
+  "@ui-sdk/core"
+];
 
 /** Public, JSON-safe view of the plugin set, for the shell. */
 function pluginMeta(config: LoadedConfig, stack: StackInfo) {
-  return Object.fromEntries(
-    stack.resources.map((r: ResourceInfo) => {
-      const view = viewFor(config.views, r.type);
-      const plugin = view ? config.plugins.find(p => p.name === view.plugin) : undefined;
-      // Link and locality come from the first plugin that answers, even one
-      // without a view for this type.
-      const link = config.plugins.map(p => safe(() => p.link?.(r))).find(Boolean);
-      const local = plugin?.isLocal ? safe(() => plugin.isLocal!(r)) ?? true : true;
-      return [r.fqn, { viewId: view?.id, link, local }];
-    })
-  );
+  return Object.fromEntries(stack.resources.map((r: ResourceInfo) => {
+    const view = viewFor(config.views, r.type);
+    const plugin = view ? config.plugins.find(p => p.name === view.plugin) : undefined;
+    // Link and locality come from the first plugin that answers, even one
+    // without a view for this type.
+    const link = config.plugins.map(p => safe(() => p.link?.(r))).find(Boolean);
+    const local = plugin?.isLocal ? safe(() => plugin.isLocal!(r)) ?? true : true;
+    return [r.fqn, { viewId: view?.id, link, local }];
+  }));
 }
 
 function safe<T>(fn: () => T): T | undefined {
@@ -65,7 +77,48 @@ async function sendResponse(res: ServerResponse, response: Response) {
   res.end(Buffer.from(await response.arrayBuffer()));
 }
 
+/**
+ * The API reads and writes local data, so only the dashboard itself may call
+ * it. The Host check stops DNS rebinding; `Sec-Fetch-Site` stops other
+ * pages (including other localhost ports) from sending requests, even
+ * "simple" ones like an `<img>` pointing at a GET handler; requiring JSON
+ * on POST forces a CORS preflight that this server never answers.
+ */
+function rejectForeign(req: IncomingMessage, port: number): string | undefined {
+  const host = req.headers.host ?? "";
+  if(host !== `localhost:${port}` && host !== `127.0.0.1:${port}`) return `Unexpected Host '${host}'.`;
+  const site = req.headers["sec-fetch-site"];
+  if(site !== undefined && site !== "same-origin" && site !== "none") return "Cross-site requests are not allowed.";
+  const origin = req.headers.origin;
+  if(origin !== undefined && origin !== `http://${host}`) return `Unexpected Origin '${origin}'.`;
+  if(req.method === "POST" && !req.headers["content-type"]?.startsWith("application/json")) {
+    return "POST requests must send application/json.";
+  }
+  return undefined;
+}
+
+function canListen(port: number, host: string) {
+  return new Promise<boolean>(ok => {
+    const probe = createNetServer();
+    probe.once("error", (error: NodeJS.ErrnoException) => ok(error.code === "EADDRNOTAVAIL" || error.code === "EAFNOSUPPORT"));
+    probe.listen(port, host, () => probe.close(() => ok(true)));
+  });
+}
+
+/**
+ * The first port free on both IPv4 and IPv6 loopback, so "localhost" can't
+ * resolve to another app (Astro's dev server, say) on the other family.
+ */
+async function findPort(start: number, strict: boolean) {
+  for(let port = start; port < start + 50; port++) {
+    if((await canListen(port, "127.0.0.1")) && (await canListen(port, "::1"))) return port;
+    if(strict) throw new Error(`Port ${port} is in use. Pick another with --port.`);
+  }
+  throw new Error(`No free port between ${start} and ${start + 49}.`);
+}
+
 export async function startServer(config: LoadedConfig) {
+  const port = await findPort(config.port, config.strictPort);
   const readStack = makeStackReader(config.root, config.entrypoint);
   const importFromProject = makeImportFromProject(config.root);
   let stage = config.stage;
@@ -82,12 +135,7 @@ export async function startServer(config: LoadedConfig) {
   }
 
   function contextFor(stack: StackInfo, resource: ResourceInfo | undefined): HandlerContext {
-    return {
-      resource,
-      stack,
-      root: config.root,
-      importFromProject
-    };
+    return { resource, stack, root: config.root, importFromProject };
   }
 
   async function api(req: IncomingMessage, res: ServerResponse, url: URL) {
@@ -114,16 +162,15 @@ export async function startServer(config: LoadedConfig) {
     }
 
     // POST /rpc {target, handler, input} → JSON, or the handler's Response.
-    // GET  /rpc?target&handler&input=<json> → same; used for links/downloads.
-    if(path === "/rpc") {
-      const call =
-        req.method === "POST"
-          ? JSON.parse((await readBody(req)) || "{}")
-          : {
-            target: JSON.parse(url.searchParams.get("target") ?? "{}"),
-            handler: url.searchParams.get("handler"),
-            input: JSON.parse(url.searchParams.get("input") ?? "null")
-          };
+    // GET  /rpc?target&handler&input=<json> → same; for links and downloads.
+    if(path === "/rpc" && (req.method === "POST" || req.method === "GET")) {
+      const call = req.method === "POST"
+        ? JSON.parse((await readBody(req)) || "{}")
+        : {
+          target: JSON.parse(url.searchParams.get("target") ?? "{}"),
+          handler: url.searchParams.get("handler"),
+          input: JSON.parse(url.searchParams.get("input") ?? "null")
+        };
       const target: { fqn?: string, page?: string } = call.target ?? {};
       const stack = await getStack();
       let file: string | undefined;
@@ -136,13 +183,17 @@ export async function startServer(config: LoadedConfig) {
         file = config.pages.find(p => p.id === target.page)?.server;
       }
       if(!file) return sendJson(res, 404, { error: "This view has no server module." });
-      const result = await callHandler(file, call.handler, call.input, contextFor(stack, resource));
+      const result = await callHandler(file, call.handler, call.input ?? undefined, contextFor(stack, resource));
       if(result instanceof Response) return sendResponse(res, result);
       return sendJson(res, 200, { result: result ?? null });
     }
 
-    return sendJson(res, 404, { error: `Unknown endpoint ${path}` });
+    return sendJson(res, 404, { error: `Unknown endpoint ${req.method} ${path}` });
   }
+
+  // Created first so Vite's hot-reload websocket can share it instead of
+  // opening its own fixed port.
+  const server = createServer();
 
   const vite = await createVite({
     configFile: false,
@@ -150,24 +201,55 @@ export async function startServer(config: LoadedConfig) {
     appType: "spa",
     // The cache lives next to Alchemy's own state: ephemeral, gitignored.
     cacheDir: join(config.root, ".alchemy", "alchemy-viz", "vite"),
-    plugins: [react(), registryPlugin(config.views, config.pages)],
-    resolve: { dedupe: ["react", "react-dom"] },
-    optimizeDeps: { include: ["react", "react-dom", "react-dom/client", "react/jsx-runtime", "react/jsx-dev-runtime"] },
+    plugins: [
+      tailwindSourcesPlugin(stylesheet, config.views, config.pages),
+      tailwind(),
+      react(),
+      registryPlugin(config.views, config.pages)
+    ],
+    resolve: { dedupe: SHARED },
+    // Views load lazily through the registry, which Vite's dependency scan
+    // can't see into. Scanning them up front pre-bundles everything in one
+    // pass; a dependency found later is bundled separately, and libraries
+    // that check `instanceof` across packages (CodeMirror) then break.
+    optimizeDeps: {
+      entries: [join(appRoot, "index.html"), ...[...config.views, ...config.pages].map(entry => entry.view)],
+      include: [
+        "react",
+        "react-dom",
+        "react-dom/client",
+        "react/jsx-runtime",
+        "react/jsx-dev-runtime",
+        "elkjs/lib/elk.bundled.js",
+        "@uiw/react-codemirror",
+        "@codemirror/state",
+        "@codemirror/view",
+        "@codemirror/language",
+        "@codemirror/lang-sql",
+        "@codemirror/lang-json",
+        "@lezer/highlight"
+      ]
+    },
     server: {
       middlewareMode: true,
-      fs: { allow: [config.root, packageRoot, ...config.views.map(v => dirname(v.view)), ...config.pages.map(p => dirname(p.view))] }
+      hmr: { server },
+      fs: {
+        allow: [config.root, packageRoot, ...[...config.views, ...config.pages].map(entry => dirname(entry.view))]
+      }
     },
     logLevel: "warn"
   });
 
-  const server = createServer(async (req, res) => {
+  server.on("request", async (req: IncomingMessage, res: ServerResponse) => {
     const url = new URL(req.url ?? "/", "http://localhost");
     if(url.pathname.startsWith("/__viz/api/")) {
+      const refusal = rejectForeign(req, port);
+      if(refusal) return sendJson(res, 403, { error: refusal });
       try {
         await api(req, res, url);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        if(!res.headersSent) sendJson(res, 500, { error: message });
+        if(!res.headersSent) sendJson(res, error instanceof InputError || error instanceof SyntaxError ? 400 : 500, { error: message });
       }
       return;
     }
@@ -176,11 +258,11 @@ export async function startServer(config: LoadedConfig) {
 
   await new Promise<void>((ok, fail) => {
     server.once("error", fail);
-    server.listen(config.port, "127.0.0.1", () => ok());
+    server.listen(port, "127.0.0.1", () => ok());
   });
 
   return {
-    url: `http://localhost:${config.port}`,
+    url: `http://localhost:${port}`,
     getStack,
     close: async () => {
       await vite.close();

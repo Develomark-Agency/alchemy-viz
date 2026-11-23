@@ -9,6 +9,7 @@ import { existsSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { ModuleRef, PageEntry, ViewEntry, VizConfig, VizPlugin } from "../types.ts";
+import { validateConfig } from "./config-schema.ts";
 
 export const CONFIG_FILES = ["alchemy-viz.config.ts", "alchemy-viz.config.js", "alchemy-viz.config.mjs"];
 
@@ -47,15 +48,27 @@ export interface LoadedConfig {
   entrypoint: string,
   stage: string,
   port: number,
+  /** Fail instead of moving to the next free port, when the port was chosen explicitly. */
+  strictPort: boolean,
   plugins: VizPlugin[],
   views: ResolvedView[],
   pages: ResolvedPage[]
 }
 
-function toPath(ref: ModuleRef, base: string) {
-  if(ref instanceof URL) return fileURLToPath(ref);
-  if(ref.startsWith("file:")) return fileURLToPath(ref);
-  return isAbsolute(ref) ? ref : resolve(base, ref);
+/**
+ * A module reference as an absolute file path: relative paths resolve
+ * against the config file, `file:` URLs convert, and anything else is a
+ * package specifier resolved from the project (`my-plugin/views/table`).
+ */
+function toPath(ref: ModuleRef, base: string, root: string) {
+  if(ref instanceof URL || ref.startsWith("file:")) return fileURLToPath(ref);
+  if(isAbsolute(ref)) return ref;
+  if(ref.startsWith("./") || ref.startsWith("../")) return resolve(base, ref);
+  try {
+    return Bun.resolveSync(ref, root);
+  } catch {
+    throw new Error(`Couldn't resolve '${ref}' from ${root}. Use a relative path, an absolute path, or an installed package's export.`);
+  }
 }
 
 function defaultStage() {
@@ -76,9 +89,9 @@ export async function loadConfig(options: {
     throw new Error(`Config file not found: ${configFile}`);
   }
   const root = configFile ? dirname(configFile) : options.cwd;
-  const config: VizConfig = configFile
-    ? ((await import(pathToFileURL(configFile).href)).default ?? {})
-    : {};
+  const config = (configFile
+    ? validateConfig((await import(pathToFileURL(configFile).href)).default, configFile)
+    : {}) as VizConfig;
 
   // A config without plugins gets the built-ins; listing plugins replaces
   // them, so a project can drop or reorder them.
@@ -93,8 +106,8 @@ export async function loadConfig(options: {
         plugin: plugin.name,
         types: Array.isArray(entry.type) ? entry.type : [entry.type],
         title: entry.title ?? "Explore",
-        server: entry.server ? toPath(entry.server, root) : undefined,
-        view: toPath(entry.view, root)
+        server: entry.server ? toPath(entry.server, root, root) : undefined,
+        view: toPath(entry.view, root, root)
       });
     });
     plugin.pages?.forEach((entry: PageEntry, i) => {
@@ -103,8 +116,8 @@ export async function loadConfig(options: {
         plugin: plugin.name,
         route: entry.route,
         title: entry.title,
-        server: entry.server ? toPath(entry.server, root) : undefined,
-        view: toPath(entry.view, root)
+        server: entry.server ? toPath(entry.server, root, root) : undefined,
+        view: toPath(entry.view, root, root)
       });
     });
   }
@@ -121,7 +134,8 @@ export async function loadConfig(options: {
     configFile,
     entrypoint: resolve(root, config.stack ?? "./alchemy.run.ts"),
     stage: options.stage ?? config.stage ?? defaultStage(),
-    port: options.port ?? config.port ?? 4321,
+    port: options.port ?? config.port ?? 4700,
+    strictPort: (options.port ?? config.port) !== undefined,
     plugins,
     views,
     pages

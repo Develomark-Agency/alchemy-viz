@@ -1,35 +1,46 @@
 import { definePage } from "alchemy-viz/client";
-import { Button, DataTable, ErrorBanner, Input, Panel, Row, Stack } from "alchemy-viz/ui";
+import { Button, DataTable, ErrorBanner, Field, FieldLabel, Input, Panel, toast } from "alchemy-viz/ui";
+import { Send } from "lucide-react";
 import { useState } from "react";
 import type server from "./server.ts";
 
 export default definePage<typeof server>(({ api }) => {
-  const [count, setCount] = useState(20);
-  const send = api.send.useMutation();
+  const [count, setCount] = useState("20");
+  const send = api.send.useMutation({ onSuccess: (_, input) => toast(`Sent ${input.count} requests`) });
+
   return (
-    <Stack gap={16}>
+    <div className="flex flex-col gap-4">
       <Panel title="Generate traffic">
-        <Row gap={8}>
-          <Input
-            type="number"
-            min={1}
-            max={200}
-            value={count}
-            onChange={e => setCount(Number(e.target.value))}
-            style={{ width: 100 }}
-            aria-label="Request count"
-          />
-          <Button variant="primary" loading={send.pending} onClick={() => send.run({ count })}>
-            Send {count} requests
+        <form
+          className="flex flex-wrap items-end gap-3"
+          onSubmit={e => {
+            e.preventDefault();
+            send.mutate({ count: Number(count) });
+          }}
+        >
+          <Field className="w-32">
+            <FieldLabel>Requests</FieldLabel>
+            <Input type="number" min={1} max={200} value={count} onValueChange={setCount} />
+          </Field>
+          <Button variant="primary" type="button" onClick={() => send.mutateAsync({ count: Number(count) }).catch(() => {})}>
+            <Send />
+            Send
           </Button>
-        </Row>
+        </form>
       </Panel>
       <ErrorBanner error={send.error} />
       {send.data && (
         <Panel title="Responses" flush>
-          <DataTable rows={send.data} rowKey={r => r.route} columns={[{ key: "route", header: "Route" }, { key: "count", header: "Requests" }]} />
+          <DataTable
+            rows={send.data}
+            getRowId={r => r.route}
+            columns={[
+              { id: "route", header: "Route", size: 260, cell: r => <span className="font-mono text-xs">{r.route}</span> },
+              { id: "count", header: "Requests", size: 120, align: "right" }
+            ]}
+          />
         </Panel>
       )}
-    </Stack>
+    </div>
   );
 });

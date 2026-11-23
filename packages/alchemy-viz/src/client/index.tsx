@@ -10,22 +10,31 @@
  *   ...
  * });
  * ```
+ *
+ * Every handler on `api` is backed by TanStack Query: results are cached
+ * per resource, handler and input, and a successful mutation refetches the
+ * resource's queries.
  */
 import {
-  type AnchorHTMLAttributes,
-  createContext,
-  type ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  useSyncExternalStore
-} from "react";
+  type InfiniteData,
+  type QueryKey,
+  useInfiniteQuery as useInfiniteQueryBase,
+  useMutation as useMutationBase,
+  useQuery as useQueryBase,
+  useQueryClient,
+  type UseInfiniteQueryResult,
+  type UseMutationOptions,
+  type UseMutationResult,
+  type UseQueryOptions,
+  type UseQueryResult
+} from "@tanstack/react-query";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { type ComponentProps, type ReactNode, useCallback } from "react";
 import type { Handler, ServerDefinition } from "../server/define.ts";
 import type { ResourceInfo, StackInfo } from "../types.ts";
 
 export type { ResourceInfo, StackInfo } from "../types.ts";
+export { useQueryClient };
 
 // ---------------------------------------------------------------------------
 // Typed API
@@ -33,45 +42,44 @@ export type { ResourceInfo, StackInfo } from "../types.ts";
 type InputOf<H> = H extends (input: infer I, ...rest: any[]) => any ? I : undefined;
 type OutputOf<H> = H extends (...args: any[]) => infer O ? Awaited<O> : never;
 type Args<I> = undefined extends I ? [input?: I] : [input: I];
+type Vars<I> = undefined extends I ? I | void : I;
 
-export interface QueryState<O> {
-  data: O | undefined,
-  error: Error | undefined,
-  loading: boolean,
-  refetch: () => void
-}
+export type QueryOptions<O> = Omit<UseQueryOptions<O, Error, O>, "queryKey" | "queryFn">;
 
-export interface QueryOptions {
-  /** Skip the call while false. */
-  enabled?: boolean,
-  /** Re-run every N ms (live views such as logs). */
-  refreshInterval?: number
-}
-
-export interface MutationState<I, O> {
-  run: (...args: Args<I>) => Promise<O>,
-  pending: boolean,
-  error: Error | undefined,
-  data: O | undefined,
-  reset: () => void
+export interface InfiniteOptions<O> {
+  /** The cursor for the page after `last`, or undefined when there are no more. */
+  getNextCursor: (last: O) => string | undefined | null,
+  enabled?: boolean
 }
 
 export interface HandlerClient<I, O> {
+  /** Call the handler directly, outside React. */
   call: (...args: Args<I>) => Promise<O>,
-  useQuery: (...args: [...Args<I>, QueryOptions?]) => QueryState<O>,
-  useMutation: () => MutationState<I, O>,
+  /** The TanStack Query key for this handler and input. */
+  key: (...args: Args<I>) => QueryKey,
+  useQuery: (...args: [...Args<I>, QueryOptions<O>?]) => UseQueryResult<O, Error>,
+  /**
+   * Cursor pagination: the handler is called with `{ ...input, cursor }`
+   * for each page.
+   */
+  useInfiniteQuery: (input: Omit<NonNullable<I>, "cursor">, options: InfiniteOptions<O>) => UseInfiniteQueryResult<InfiniteData<O, string | undefined>, Error>,
+  /** Successful calls refetch every query of the same resource or page. */
+  useMutation: (options?: Omit<UseMutationOptions<O, Error, Vars<I>>, "mutationFn">) => UseMutationResult<O, Error, Vars<I>>,
   /** A GET URL for the handler, for links, `<img src>` and downloads. */
   url: (...args: Args<I>) => string
 }
 
-export type Api<S> =
-  S extends ServerDefinition<infer H>
-    ? { [K in keyof H]: H[K] extends Handler ? HandlerClient<InputOf<H[K]>, OutputOf<H[K]>> : never }
-    : Record<string, never>;
+export type Api<S> = S extends ServerDefinition<infer H>
+  ? { [K in keyof H]: H[K] extends Handler ? HandlerClient<InputOf<H[K]>, OutputOf<H[K]>> : never }
+  : Record<string, never>;
 
 export type RpcTarget = { fqn: string } | { page: string };
 
-export class RpcError extends Error {}
+export class RpcError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+  }
+}
 
 async function rpc(target: RpcTarget, handler: string, input: unknown) {
   const res = await fetch("/__viz/api/rpc", {
@@ -81,109 +89,64 @@ async function rpc(target: RpcTarget, handler: string, input: unknown) {
   });
   const type = res.headers.get("content-type") ?? "";
   if(!type.includes("application/json")) {
-    if(!res.ok) throw new RpcError(await res.text());
+    if(!res.ok) throw new RpcError(await res.text(), res.status);
     return res;
   }
   const body = (await res.json()) as { result?: unknown, error?: string };
-  if(!res.ok || body.error) throw new RpcError(body.error ?? `HTTP ${res.status}`);
-  return "result" in body ? body.result : body;
+  if(!res.ok || body.error) throw new RpcError(body.error ?? `HTTP ${res.status}`, res.status);
+  return body.result;
 }
 
-// Every successful mutation bumps this version, so queries refetch after a
-// write without views wiring it up. The shell's refresh button bumps it too.
-let version = 0;
-const listeners = new Set<() => void>();
-export function invalidate() {
-  version++;
-  for(const l of listeners) l();
-}
-function subscribe(l: () => void) {
-  listeners.add(l);
-  return () => listeners.delete(l);
-}
-function useVersion() {
-  return useSyncExternalStore(subscribe, () => version);
-}
-
-function toError(e: unknown) {
-  return (e instanceof Error ? e : new Error(String(e)));
+function targetKey(target: RpcTarget) {
+  return "fqn" in target ? `r:${target.fqn}` : `p:${target.page}`;
 }
 
 function makeHandlerClient(target: RpcTarget, name: string): HandlerClient<any, any> {
+  const scope = ["rpc", targetKey(target)];
+  function key(input?: unknown) {
+    return [...scope, name, input ?? null];
+  }
   function call(input?: unknown) {
     return rpc(target, name, input);
   }
   return {
     call,
+    key,
     url: (input?: unknown) => `/__viz/api/rpc?${new URLSearchParams({
       target: JSON.stringify(target),
       handler: name,
       input: JSON.stringify(input ?? null)
     })}`,
     useQuery: (...args: any[]) => {
-      const input = args[0];
-      const options: QueryOptions = args[1] ?? {};
-      const enabled = options.enabled ?? true;
-      const key = JSON.stringify(input ?? null);
-      const v = useVersion();
-      const [tick, setTick] = useState(0);
-      const [state, setState] = useState<{ data?: unknown, error?: Error, loading: boolean }>({
-        loading: enabled
-      });
-      const lastKey = useRef<string | undefined>(undefined);
-      useEffect(() => {
-        if(!enabled) return;
-        let cancelled = false;
-        // Keep showing old data while refetching the same key; clear it for a new key.
-        const sameKey = lastKey.current === key;
-        lastKey.current = key;
-        setState(s => ({ data: sameKey ? s.data : undefined, error: undefined, loading: true }));
-        call(JSON.parse(key)).then(
-          data => !cancelled && setState({ data, loading: false }),
-          e => !cancelled && setState(s => ({ data: sameKey ? s.data : undefined, error: toError(e), loading: false }))
-        );
-        return () => {
-          cancelled = true;
-        };
-      }, [key, enabled, v, tick]);
-      useEffect(() => {
-        if(!enabled || !options.refreshInterval) return;
-        const id = setInterval(() => setTick(t => t + 1), options.refreshInterval);
-        return () => clearInterval(id);
-      }, [enabled, options.refreshInterval]);
-      return {
-        data: state.data,
-        error: state.error,
-        loading: state.loading,
-        refetch: useCallback(() => setTick(t => t + 1), [])
-      };
+      const [input, options] = args as [unknown, QueryOptions<unknown> | undefined];
+      return useQueryBase({ queryKey: key(input), queryFn: () => call(input), ...options });
     },
-    useMutation: () => {
-      const [state, setState] = useState<{ pending: boolean, error?: Error, data?: unknown }>({ pending: false });
-      const run = useCallback(async (input?: unknown) => {
-        setState({ pending: true });
-        try {
-          const data = await call(input);
-          setState({ pending: false, data });
-          invalidate();
-          return data;
-        } catch (e) {
-          setState({ pending: false, error: toError(e) });
-          throw e;
+    useInfiniteQuery: (input, options) => useInfiniteQueryBase({
+      queryKey: [...key(input), "pages"],
+      queryFn: ({ pageParam }) => call({ ...(input as object), cursor: pageParam }),
+      initialPageParam: undefined as string | undefined,
+      getNextPageParam: last => options.getNextCursor(last) ?? undefined,
+      enabled: options.enabled
+    }),
+    useMutation: options => {
+      const client = useQueryClient();
+      return useMutationBase({
+        ...options,
+        mutationFn: (input: unknown) => call(input),
+        onSuccess: async (...args) => {
+          await client.invalidateQueries({ queryKey: scope });
+          await (options?.onSuccess as ((...a: unknown[]) => unknown) | undefined)?.(...args);
         }
-      }, []);
-      return { ...state, run, reset: useCallback(() => setState({ pending: false }), []) } as MutationState<any, any>;
+      });
     }
   };
 }
 
-/** Build the `api` object for a resource or page. Used by the shell. */
+/** Builds the `api` object for a resource or page. Used by the shell. */
 export function makeApi<S>(target: RpcTarget): Api<S> {
-  return new Proxy({} as Record<string, HandlerClient<any, any>>, {
-    get: (cache, name) => {
-      if(typeof name !== "string") return undefined;
-      return (cache[name] ??= makeHandlerClient(target, name));
-    }
+  const cache: Record<string, HandlerClient<any, any>> = {};
+  return new Proxy(cache, {
+    get: (_, name) => (typeof name === "string" ? (cache[name] ??= makeHandlerClient(target, name)) : undefined)
   }) as Api<S>;
 }
 
@@ -212,53 +175,52 @@ export interface PageDefinition<S = any> {
 }
 
 export function defineView<S = undefined>(component: (props: ViewProps<S>) => ReactNode): ViewDefinition<S> {
-  return {
-    __alchemyViz: "view",
-    component
-  };
+  return { __alchemyViz: "view", component };
 }
 
 export function definePage<S = undefined>(component: (props: PageProps<S>) => ReactNode): PageDefinition<S> {
-  return {
-    __alchemyViz: "page",
-    component
-  };
+  return { __alchemyViz: "page", component };
 }
 
 // ---------------------------------------------------------------------------
-// Navigation
-
-export const NavigateContext = createContext<(path: string) => void>(path => {
-  window.location.href = path;
-});
-
-export function useNavigate() {
-  return useContext(NavigateContext);
-}
-
-export function resourcePath(fqn: string) {
-  return `/r/${encodeURIComponent(fqn)}`;
-}
+// Navigation and URL state
 
 /** Link to another resource's page, e.g. from a Worker binding to its KV namespace. */
-export function ResourceLink({
-  fqn,
-  children,
-  ...rest
-}: { fqn: string, children?: ReactNode } & AnchorHTMLAttributes<HTMLAnchorElement>) {
-  const navigate = useNavigate();
-  const href = resourcePath(fqn);
+export function ResourceLink({ fqn, children, ...rest }: { fqn: string, children?: ReactNode } & Omit<ComponentProps<"a">, "href">) {
   return (
-    <a
-      {...rest}
-      href={href}
-      onClick={e => {
-        if(e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
-        e.preventDefault();
-        navigate(href);
-      }}
-    >
+    <Link to="/r/$fqn" params={{ fqn }} {...rest}>
       {children ?? fqn}
-    </a>
+    </Link>
   );
+}
+
+/** Navigate to a resource's page from code. */
+export function useOpenResource() {
+  const navigate = useNavigate();
+  return useCallback((fqn: string, tab?: string) => navigate({ to: "/r/$fqn", params: { fqn }, search: tab ? { tab } : {} }), [navigate]);
+}
+
+/**
+ * State kept in the URL's query string, so a reload or a shared link opens
+ * the view in the same place (the selected key, the open table, ...).
+ */
+export function useUrlState(name: string): [string | undefined, (value: string | undefined) => void] {
+  const search = useSearch({ strict: false }) as Record<string, unknown>;
+  const navigate = useNavigate();
+  const raw = search[name];
+  const value = raw === undefined || raw === null ? undefined : String(raw);
+  const set = useCallback(
+    (next: string | undefined) => navigate({
+      to: ".",
+      replace: true,
+      search: (prev: Record<string, unknown>) => {
+        const out = { ...prev };
+        if(next === undefined || next === "") delete out[name];
+        else out[name] = next;
+        return out;
+      }
+    } as never),
+    [navigate, name]
+  );
+  return [value, set];
 }

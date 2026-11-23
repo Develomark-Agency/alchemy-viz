@@ -1,23 +1,27 @@
-import { useEffect, useRef, useState } from "react";
-import { type Api, defineView } from "../../../client/index.tsx";
+import { Download, File, Folder, Trash2, Upload, X } from "lucide-react";
+import { useMemo, useRef } from "react";
+import { type Api, defineView, useUrlState } from "../../../client/index.tsx";
 import {
-  ActionButton,
   Button,
-  Code,
+  CodeBlock,
+  type Column,
+  ConfirmButton,
   DataTable,
   EmptyState,
   ErrorBanner,
   formatBytes,
   formatTime,
+  IconButton,
   JsonInspector,
   KeyValueList,
+  languageFor,
   LinkButton,
   Loading,
   Panel,
-  Row,
   Split,
-  Stack
+  toast
 } from "../../../ui/index.ts";
+import { useQuery } from "@tanstack/react-query";
 import type server from "./server.ts";
 import type { ObjectInfo } from "./server.ts";
 
@@ -34,187 +38,164 @@ async function toBase64(file: File) {
 }
 
 export default defineView<typeof server>(({ api }) => {
-  const [prefix, setPrefix] = useState("");
-  const [selected, setSelected] = useState<string>();
-  const page = api.list.useQuery({ prefix });
+  const [prefix = "", setPrefix] = useUrlState("prefix");
+  const [selected, setSelected] = useUrlState("object");
+  const pages = api.list.useInfiniteQuery({ prefix }, { getNextCursor: p => p.cursor });
   const put = api.put.useMutation();
   const fileInput = useRef<HTMLInputElement>(null);
-  const [extra, setExtra] = useState<{ objects: ObjectInfo[], cursor?: string }>({ objects: [] });
 
-  useEffect(() => setExtra({ objects: [] }), [page.data]);
+  const entries = useMemo<Entry[] | undefined>(() => {
+    if(!pages.data) return undefined;
+    const folders = pages.data.pages[0]?.folders ?? [];
+    return [
+      ...folders.map((key): Entry => ({ kind: "folder", key })),
+      ...pages.data.pages.flatMap(p => p.objects).map((o): Entry => ({ kind: "object", ...o }))
+    ];
+  }, [pages.data]);
 
-  const cursor = extra.objects.length ? extra.cursor : page.data?.cursor;
-  const entries: Entry[] = [
-    ...(page.data?.folders ?? []).map((key): Entry => ({ kind: "folder", key })),
-    ...[...(page.data?.objects ?? []), ...extra.objects].map((o): Entry => ({ kind: "object", ...o }))
-  ];
+  const columns = useMemo<Array<Column<Entry>>>(() => [
+    {
+      id: "name",
+      header: "Name",
+      size: 300,
+      accessor: e => `${e.kind === "folder" ? 0 : 1}${e.key}`,
+      cell: e => (
+        <span className="inline-flex items-center gap-2 font-mono text-xs">
+          {e.kind === "folder" ? <Folder className="size-3.5 text-accent" /> : <File className="size-3.5 text-fg-subtle" />}
+          {e.key.slice(prefix.length)}
+        </span>
+      )
+    },
+    { id: "size", header: "Size", size: 90, align: "right", accessor: e => (e.kind === "object" ? e.size : -1), cell: e => (e.kind === "object" ? formatBytes(e.size) : "") },
+    { id: "type", header: "Type", size: 140, accessor: e => (e.kind === "object" ? e.contentType : ""), cell: e => (e.kind === "object" ? <span className="text-fg-muted">{e.contentType ?? "—"}</span> : "") },
+    { id: "uploaded", header: "Uploaded", size: 180, accessor: e => (e.kind === "object" ? e.uploaded : ""), cell: e => (e.kind === "object" ? <span className="text-fg-muted">{formatTime(e.uploaded)}</span> : "") }
+  ], [prefix]);
 
   const crumbs = prefix.split("/").filter(Boolean);
-  function open(p: string) {
-    setPrefix(p);
+
+  function open(next: string) {
+    setPrefix(next || undefined);
     setSelected(undefined);
   }
 
   async function upload(files: FileList | null) {
     for(const file of Array.from(files ?? [])) {
       const key = prefix + file.name;
-      await put.run({ key, base64: await toBase64(file), contentType: file.type || undefined });
-      setSelected(key);
+      try {
+        await put.mutateAsync({ key, base64: await toBase64(file), contentType: file.type || undefined });
+        toast("Uploaded", { description: key });
+        setSelected(key);
+      } catch {}
     }
     if(fileInput.current) fileInput.current.value = "";
   }
 
   const list = (
     <Panel
-      title={
-        <Row gap={4} className="av-mono" style={{ fontWeight: 500 }}>
-          <button type="button" className="av-button av-button-ghost av-button-sm" onClick={() => open("")}>
-            /
+      title={(
+        <nav aria-label="Folder" className="flex min-w-0 items-center gap-0.5 font-mono text-xs font-normal">
+          <button type="button" onClick={() => open("")} className="rounded px-1.5 py-0.5 hover:bg-hover">
+            bucket
           </button>
           {crumbs.map((c, i) => (
-            <span key={i} className="av-row" style={{ gap: 4 }}>
-              <button
-                type="button"
-                className="av-button av-button-ghost av-button-sm"
-                onClick={() => open(`${crumbs.slice(0, i + 1).join("/")}/`)}
-              >
+            <span key={`${i}-${c}`} className="flex items-center gap-0.5">
+              <span className="text-fg-subtle">/</span>
+              <button type="button" onClick={() => open(`${crumbs.slice(0, i + 1).join("/")}/`)} className="rounded px-1.5 py-0.5 hover:bg-hover">
                 {c}
               </button>
-              <span className="av-muted">/</span>
             </span>
           ))}
-        </Row>
-      }
-      actions={
+        </nav>
+      )}
+      actions={(
         <>
           <input ref={fileInput} type="file" multiple hidden onChange={e => upload(e.target.files)} />
-          <Button size="sm" variant="primary" loading={put.pending} onClick={() => fileInput.current?.click()}>
+          <Button size="sm" variant="primary" onClick={() => fileInput.current?.click()}>
+            <Upload />
             Upload
           </Button>
         </>
-      }
+      )}
       flush
     >
-      <ErrorBanner error={put.error} />
+      <ErrorBanner error={put.error} className="m-3" />
       <DataTable<Entry>
-        rows={page.data ? entries : undefined}
-        loading={page.loading}
-        error={page.error}
+        rows={entries}
+        columns={columns}
+        getRowId={e => e.key}
+        loading={pages.isPending}
+        error={pages.error}
         empty={prefix ? "This folder is empty" : "This bucket is empty"}
-        rowKey={e => e.key}
-        selectedKey={selected}
+        selectedId={selected}
         onRowClick={e => (e.kind === "folder" ? open(e.key) : setSelected(e.key))}
-        maxHeight={560}
-        hasMore={!!cursor}
-        onLoadMore={async () => {
-          const next = await api.list.call({ prefix, cursor });
-          setExtra(x => ({ objects: [...x.objects, ...next.objects], cursor: next.cursor }));
-        }}
-        columns={[
-          {
-            key: "name",
-            header: "Name",
-            render: e => (
-              <span className="av-mono">
-                {e.kind === "folder" ? "📁 " : ""}
-                {e.key.slice(prefix.length)}
-              </span>
-            )
-          },
-          { key: "size", header: "Size", align: "right", render: e => (e.kind === "object" ? formatBytes(e.size) : "") },
-          { key: "type", header: "Type", render: e => (e.kind === "object" ? (e.contentType ?? "—") : "") },
-          { key: "uploaded", header: "Uploaded", render: e => (e.kind === "object" ? formatTime(e.uploaded) : "") }
-        ]}
+        hasMore={pages.hasNextPage}
+        loadingMore={pages.isFetchingNextPage}
+        onEndReached={() => pages.fetchNextPage()}
+        maxHeight={600}
       />
     </Panel>
   );
 
   if(!selected) return list;
-  return (
-    <Split
-      leftWidth={560}
-      left={list}
-      right={<ObjectDetail key={selected} objectKey={selected} api={api} onClose={() => setSelected(undefined)} />}
-    />
-  );
+  return <Split leftWidth={560} left={list} right={<ObjectDetail key={selected} objectKey={selected} api={api} onClose={() => setSelected(undefined)} />} />;
 });
 
 function ObjectDetail({ objectKey, api, onClose }: { objectKey: string, api: R2Api, onClose: () => void }) {
   const head = api.head.useQuery({ key: objectKey });
   const del = api.delete.useMutation();
-  const [text, setText] = useState<string>();
-
   const o = head.data;
-  const isImage = o?.contentType?.startsWith("image/");
-  const isText = !!o && o.size <= PREVIEW_LIMIT && /^(text\/|application\/(json|xml|javascript)|.*\+json)/.test(o.contentType ?? "text/plain");
+  const isImage = !!o?.contentType?.startsWith("image/");
+  const language = languageFor(o?.contentType);
+  const isText = !!o && o.size <= PREVIEW_LIMIT && (o.contentType?.startsWith("text/") || language !== "text" || !o.contentType);
 
-  useEffect(() => {
-    if(!isText) return;
-    let cancelled = false;
-    fetch(api.object.url({ key: objectKey }))
-      .then(r => r.text())
-      .then(t => !cancelled && setText(t));
-    return () => {
-      cancelled = true;
-    };
-  }, [isText, objectKey, o?.etag]);
+  const text = useQuery({
+    queryKey: [...api.object.key({ key: objectKey }), o?.etag],
+    queryFn: async () => (await fetch(api.object.url({ key: objectKey }))).text(),
+    enabled: isText
+  });
 
   if(head.error) return <ErrorBanner error={head.error} />;
-  if(head.loading && !o) return <Loading />;
-  if(!o) {
-    return (
-      <Panel>
-        <EmptyState title="Object not found" />
-      </Panel>
-    );
-  }
+  if(head.isPending) return <Panel><Loading /></Panel>;
+  if(!o) return <Panel><EmptyState title="Object not found" /></Panel>;
 
   return (
     <Panel
-      title={<span className="av-mono av-truncate">{o.key.split("/").pop()}</span>}
-      actions={
-        <Button size="sm" variant="ghost" onClick={onClose} aria-label="Close">
-          ✕
-        </Button>
-      }
+      title={<span className="truncate font-mono text-xs">{o.key.split("/").pop()}</span>}
+      actions={(
+        <>
+          <LinkButton href={api.object.url({ key: objectKey, download: true })} external={false} size="sm">
+            <Download />
+            Download
+          </LinkButton>
+          <ConfirmButton
+            title="Delete this object?"
+            description={o.key}
+            onConfirm={async () => {
+              await del.mutateAsync({ key: objectKey });
+              toast("Deleted", { description: o.key });
+              onClose();
+            }}
+            trigger={<IconButton label="Delete object"><Trash2 /></IconButton>}
+          />
+          <IconButton label="Close" onClick={onClose}><X /></IconButton>
+        </>
+      )}
     >
-      <Stack gap={14}>
+      <div className="flex flex-col gap-4">
         <KeyValueList
           items={[
-            ["Key", <span className="av-mono">{o.key}</span>],
+            ["Key", <span className="font-mono text-xs">{o.key}</span>],
             ["Size", formatBytes(o.size)],
             ["Type", o.contentType],
             ["Uploaded", formatTime(o.uploaded)],
-            ["ETag", <span className="av-mono">{o.etag}</span>]
+            ["ETag", <span className="font-mono text-xs">{o.etag}</span>]
           ]}
         />
-        {o.customMetadata && <JsonInspector value={o.customMetadata} />}
-        {isImage && (
-          <img
-            src={api.object.url({ key: objectKey })}
-            alt={o.key}
-            style={{ maxWidth: "100%", borderRadius: 6, border: "1px solid var(--av-border)" }}
-          />
-        )}
-        {isText && (text === undefined ? <Loading /> : <Code>{text || <span className="av-null">empty</span>}</Code>)}
-        {!isImage && !isText && <span className="av-muted">No preview for this type.</span>}
-        <ErrorBanner error={del.error} />
-        <Row gap={8} justify="flex-end">
-          <LinkButton href={api.object.url({ key: objectKey, download: true })} external={false}>
-            Download
-          </LinkButton>
-          <ActionButton
-            variant="danger"
-            confirm="Click to delete"
-            onAction={async () => {
-              await del.run({ key: objectKey });
-              onClose();
-            }}
-          >
-            Delete
-          </ActionButton>
-        </Row>
-      </Stack>
+        {o.customMetadata && <JsonInspector value={o.customMetadata} label="Custom metadata" />}
+        {isImage && <img src={api.object.url({ key: objectKey })} alt={o.key} className="max-h-96 max-w-full rounded-md border border-line object-contain" />}
+        {isText && (text.data === undefined ? <Loading /> : <CodeBlock code={text.data || "(empty)"} language={language} />)}
+        {!isImage && !isText && <p className="text-[13px] text-fg-muted">No preview for this type. Download it to open it.</p>}
+      </div>
     </Panel>
   );
 }

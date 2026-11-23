@@ -1,96 +1,124 @@
 /**
- * Dependency graph of the stack: resources in columns by depth (a resource
- * sits one column right of everything it depends on), edges drawn from
- * dependency to dependent.
+ * The stack's dependency graph: React Flow for rendering and interaction,
+ * ELK's layered layout for placement (dependencies left, dependents right).
  */
-import { useMemo } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { Background, Controls, type Edge, Handle, MarkerType, type Node, type NodeProps, Position, ReactFlow } from "@xyflow/react";
+import ELK from "elkjs/lib/elk.bundled.js";
+import { useEffect, useMemo, useState } from "react";
 import type { ResourceInfo } from "../../types.ts";
-import { resourcePath } from "../index.tsx";
 import { ResourceIcon } from "./resource-icon.tsx";
 import { typeLabel } from "./type-label.ts";
 
-const NODE_W = 200;
+const NODE_W = 212;
 const NODE_H = 52;
-const COL_GAP = 72;
-const ROW_GAP = 14;
-const PAD = 12;
+const elk = new ELK();
 
-export function Graph({ resources, navigate }: { resources: ResourceInfo[], navigate: (p: string) => void }) {
-  const layout = useMemo(() => {
-    const byFqn = new Map(resources.map(r => [r.fqn, r]));
-    const depth = new Map<string, number>();
-    const visiting = new Set<string>();
-    function depthOf(fqn: string): number {
-      if(depth.has(fqn)) return depth.get(fqn)!;
-      if(visiting.has(fqn)) return 0; // cycle guard
-      visiting.add(fqn);
-      const ups = (byFqn.get(fqn)?.upstream ?? []).filter(u => byFqn.has(u));
-      const d = ups.length ? Math.max(...ups.map(depthOf)) + 1 : 0;
-      visiting.delete(fqn);
-      depth.set(fqn, d);
-      return d;
-    }
-    const columns: ResourceInfo[][] = [];
-    for(const r of resources) (columns[depthOf(r.fqn)] ??= []).push(r);
-    const pos = new Map<string, { x: number, y: number }>();
-    columns.forEach((col, c) => col.forEach((r, i) => pos.set(r.fqn, { x: PAD + c * (NODE_W + COL_GAP), y: PAD + i * (NODE_H + ROW_GAP) }))
-    );
-    const rows = Math.max(1, ...columns.map(c => c?.length ?? 0));
-    const edges = resources.flatMap(r => r.downstream.filter(d => pos.has(d)).map(d => ({ from: pos.get(r.fqn)!, to: pos.get(d)!, key: `${r.fqn}->${d}` }))
-    );
-    return {
-      pos,
-      edges,
-      width: PAD * 2 + columns.length * NODE_W + Math.max(0, columns.length - 1) * COL_GAP,
-      height: PAD * 2 + rows * NODE_H + (rows - 1) * ROW_GAP
-    };
+type ResourceNode = Node<{ resource: ResourceInfo }, "resource">;
+
+function ResourceNodeView({ data }: NodeProps<ResourceNode>) {
+  const r = data.resource;
+  return (
+    <div className="flex h-full w-full cursor-pointer items-center gap-2.5 rounded-lg border border-line-strong bg-surface px-3 shadow-xs transition-colors hover:border-accent">
+      <Handle type="target" position={Position.Left} className="!size-1.5 !min-h-0 !min-w-0 !border-0 !bg-line-strong" />
+      <ResourceIcon type={r.type} size={26} />
+      <div className="min-w-0">
+        <div className="truncate text-[13px] font-medium">{r.logicalId}</div>
+        <div className="truncate text-[11.5px] text-fg-subtle">{typeLabel(r.type).name}</div>
+      </div>
+      {r.mode === "local" && <span className="ml-auto size-1.5 shrink-0 rounded-full bg-ok" title="Running locally" />}
+      <Handle type="source" position={Position.Right} className="!size-1.5 !min-h-0 !min-w-0 !border-0 !bg-line-strong" />
+    </div>
+  );
+}
+
+const nodeTypes = { resource: ResourceNodeView };
+
+export function Graph({ resources }: { resources: ResourceInfo[] }) {
+  const navigate = useNavigate();
+  const [positions, setPositions] = useState<Map<string, { x: number, y: number }>>();
+  const [size, setSize] = useState({ width: 0, height: 0 });
+
+  const edges = useMemo<Edge[]>(() => {
+    const known = new Set(resources.map(r => r.fqn));
+    return resources.flatMap(r => r.downstream.filter(d => known.has(d)).map(d => ({
+      id: `${r.fqn}->${d}`,
+      source: r.fqn,
+      target: d,
+      style: { stroke: "var(--av-line-strong)", strokeWidth: 1.5 },
+      markerEnd: { type: MarkerType.ArrowClosed, color: "var(--av-line-strong)", width: 16, height: 16 }
+    })));
   }, [resources]);
 
+  // Lay out again only when the graph's shape changes, not on every poll.
+  const shape = useMemo(() => JSON.stringify([resources.map(r => r.fqn), edges.map(e => e.id)]), [resources, edges]);
+
+  useEffect(() => {
+    let cancelled = false;
+    elk.layout({
+      id: "root",
+      layoutOptions: {
+        "elk.algorithm": "layered",
+        "elk.direction": "RIGHT",
+        "elk.layered.spacing.nodeNodeBetweenLayers": "72",
+        "elk.spacing.nodeNode": "16",
+        "elk.layered.nodePlacement.strategy": "BRANDES_KOEPF"
+      },
+      children: resources.map(r => ({ id: r.fqn, width: NODE_W, height: NODE_H })),
+      edges: edges.map(e => ({ id: e.id, sources: [e.source], targets: [e.target] }))
+    }).then(layout => {
+      if(cancelled) return;
+      setPositions(new Map((layout.children ?? []).map(c => [c.id, { x: c.x ?? 0, y: c.y ?? 0 }])));
+      const box = layout as { width?: number, height?: number };
+      setSize({ width: box.width ?? 0, height: box.height ?? 0 });
+    });
+    return () => {
+      cancelled = true;
+    };
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- `shape` captures resources and edges
+  }, [shape]);
+
+  const nodes = useMemo<ResourceNode[]>(
+    () => resources.map(r => ({
+      id: r.fqn,
+      type: "resource",
+      position: positions?.get(r.fqn) ?? { x: 0, y: 0 },
+      data: { resource: r },
+      width: NODE_W,
+      height: NODE_H,
+      draggable: false,
+      connectable: false,
+      selectable: false
+    })),
+    [resources, positions]
+  );
+
+  const height = Math.min(Math.max(size.height + 64, 200), 460);
+
   return (
-    <div className="viz-graph" style={{ overflowX: "auto" }}>
-      <div style={{ position: "relative", width: layout.width, height: layout.height }}>
-        <svg width={layout.width} height={layout.height} style={{ position: "absolute", inset: 0 }} aria-hidden>
-          {layout.edges.map(e => {
-            const x1 = e.from.x + NODE_W;
-            const y1 = e.from.y + NODE_H / 2;
-            const x2 = e.to.x;
-            const y2 = e.to.y + NODE_H / 2;
-            const mx = (x1 + x2) / 2;
-            return (
-              <path
-                key={e.key}
-                d={`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`}
-                fill="none"
-                stroke="var(--av-border-strong)"
-                strokeWidth={1.5}
-              />
-            );
-          })}
-        </svg>
-        {resources.map(r => {
-          const p = layout.pos.get(r.fqn)!;
-          const href = resourcePath(r.fqn);
-          return (
-            <a
-              key={r.fqn}
-              href={href}
-              className="viz-node"
-              style={{ left: p.x, top: p.y, width: NODE_W, height: NODE_H }}
-              onClick={e => {
-                if(e.metaKey || e.ctrlKey) return;
-                e.preventDefault();
-                navigate(href);
-              }}
-            >
-              <ResourceIcon type={r.type} size={26} />
-              <span className="av-stack" style={{ minWidth: 0 }}>
-                <span className="viz-node-name av-truncate">{r.logicalId}</span>
-                <span className="viz-node-type av-truncate">{typeLabel(r.type).name}</span>
-              </span>
-            </a>
-          );
-        })}
-      </div>
+    <div style={{ height }} className="[&_.react-flow__attribution]:bg-transparent [&_.react-flow__attribution_a]:text-fg-subtle [&_.react-flow__controls]:overflow-hidden [&_.react-flow__controls]:rounded-md [&_.react-flow__controls]:border [&_.react-flow__controls]:border-line [&_.react-flow__controls-button]:border-line [&_.react-flow__controls-button]:bg-surface [&_.react-flow__controls-button]:fill-fg-muted [&_.react-flow__controls-button:hover]:bg-hover">
+      {positions && (
+        <ReactFlow
+          key={shape}
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          fitView
+          fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
+          minZoom={0.3}
+          maxZoom={1.5}
+          nodesConnectable={false}
+          nodesDraggable={false}
+          elementsSelectable={false}
+          zoomOnScroll={false}
+          preventScrolling={false}
+          onNodeClick={(_, node) => navigate({ to: "/r/$fqn", params: { fqn: node.id } })}
+          aria-label="Resource dependency graph"
+        >
+          <Background gap={16} size={1} color="var(--av-line)" />
+          <Controls showInteractive={false} position="bottom-right" />
+        </ReactFlow>
+      )}
     </div>
   );
 }

@@ -1,7 +1,15 @@
 import { defineView } from "alchemy-viz/client";
-import { ActionButton, Badge, Button, DataTable, ErrorBanner, Input, Panel, Row, Toggle } from "alchemy-viz/ui";
+import { Badge, Button, type Column, ConfirmButton, DataTable, ErrorBanner, Input, Panel, Switch } from "alchemy-viz/ui";
+import { Plus } from "lucide-react";
 import { useState } from "react";
 import type server from "./server.ts";
+
+interface Flag {
+  name: string,
+  enabled: boolean,
+  declared: boolean,
+  default: boolean | undefined
+}
 
 export default defineView<typeof server>(({ resource, api }) => {
   const flags = api.flags.useQuery();
@@ -9,62 +17,55 @@ export default defineView<typeof server>(({ resource, api }) => {
   const remove = api.remove.useMutation();
   const [name, setName] = useState("");
 
+  const columns: Array<Column<Flag>> = [
+    { id: "name", header: "Flag", size: 220, cell: f => <span className="font-mono text-xs">{f.name}</span> },
+    {
+      id: "source",
+      header: "Source",
+      size: 220,
+      accessor: f => (f.declared ? 0 : 1),
+      cell: f => (f.declared ? <Badge>declared · default {String(f.default)}</Badge> : <Badge tone="accent">added here</Badge>)
+    },
+    {
+      id: "enabled",
+      header: "Enabled",
+      size: 110,
+      cell: f => <Switch aria-label={f.name} checked={f.enabled} onCheckedChange={enabled => set.mutate({ name: f.name, enabled })} />
+    },
+    {
+      id: "actions",
+      header: "",
+      size: 110,
+      sortable: false,
+      align: "right",
+      cell: f => (f.declared ? null : <ConfirmButton title={`Remove ${f.name}?`} onConfirm={() => remove.mutateAsync({ name: f.name })}>Remove</ConfirmButton>)
+    }
+  ];
+
   async function add() {
-    if(!name.trim()) return;
-    await set.run({ name: name.trim(), enabled: false });
-    setName("");
+    try {
+      await set.mutateAsync({ name: name.trim(), enabled: false });
+      setName("");
+    } catch {}
   }
 
   return (
-    <Panel
-      title="Feature flags"
-      actions={<span className="av-muted av-mono" style={{ fontSize: 12 }}>{resource.attr.file}</span>}
-      flush
-    >
-      <ErrorBanner error={set.error ?? remove.error} />
-      <DataTable
-        rows={flags.data}
-        loading={flags.loading}
-        error={flags.error}
-        rowKey={f => f.name}
-        empty="No flags"
-        columns={[
-          { key: "name", header: "Flag", render: f => <span className="av-mono">{f.name}</span> },
-          {
-            key: "source",
-            header: "Source",
-            render: f => f.declared ? <Badge>declared · default {String(f.default)}</Badge> : <Badge tone="accent">added here</Badge>
-          },
-          {
-            key: "enabled",
-            header: "Enabled",
-            render: f => <Toggle label={f.name} checked={f.enabled} onChange={enabled => set.run({ name: f.name, enabled })} />
-          },
-          {
-            key: "actions",
-            header: "",
-            align: "right",
-            render: f => f.declared ? null : (
-              <ActionButton size="sm" variant="danger" confirm="Remove?" onAction={() => remove.run({ name: f.name })}>
-                Remove
-              </ActionButton>
-            )
-          }
-        ]}
-      />
-      <Row gap={8} style={{ padding: 12, borderTop: "1px solid var(--av-border)" }}>
-        <Input
-          placeholder="newFlagName"
-          value={name}
-          onChange={e => setName(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && add()}
-          style={{ flex: 1 }}
-          aria-label="New flag name"
-        />
-        <Button onClick={add} loading={set.pending} disabled={!name.trim()}>
+    <Panel title="Feature flags" actions={<span className="font-mono text-xs text-fg-subtle">{resource.attr.file}</span>} flush>
+      <ErrorBanner error={set.error ?? remove.error} className="m-3" />
+      <DataTable rows={flags.data} loading={flags.isPending} error={flags.error} columns={columns} getRowId={f => f.name} empty="No flags" />
+      <form
+        className="flex gap-2 border-t border-line p-3"
+        onSubmit={e => {
+          e.preventDefault();
+          add();
+        }}
+      >
+        <Input aria-label="New flag name" placeholder="newFlagName" value={name} onValueChange={setName} className="flex-1 font-mono text-xs" />
+        <Button type="button" disabled={!name.trim()} onClick={add}>
+          <Plus />
           Add flag
         </Button>
-      </Row>
+      </form>
     </Panel>
   );
 });

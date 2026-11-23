@@ -25,7 +25,7 @@ Usage: alchemy-viz [options]
 
   -c, --config <file>   Config file (default: alchemy-viz.config.ts if present)
   -s, --stage <stage>   Stage to explore (default: $ALCHEMY_STAGE or dev_$USER)
-  -p, --port <port>     Dashboard port (default: 4321)`);
+  -p, --port <port>     Dashboard port (default: 4700, or the next free one)`);
   process.exit(0);
 }
 

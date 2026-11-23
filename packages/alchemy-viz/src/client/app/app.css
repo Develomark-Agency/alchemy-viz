@@ -1,0 +1,11 @@
+@layer ui-sdk;
+
+@import "tailwindcss" source(none);
+@import "../../ui/theme.css";
+@import "@xyflow/react/dist/base.css";
+
+@source ".";
+@source "../../ui";
+@source "../../plugins";
+
+/* Plugin view directories are appended below at build time. */

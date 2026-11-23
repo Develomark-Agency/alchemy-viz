@@ -87,7 +87,7 @@ export interface VizConfig {
   stack?: string,
   /** Stage to explore. @default $ALCHEMY_STAGE or `dev_$USER` (what `alchemy dev` uses). */
   stage?: string,
-  /** Dashboard port. @default 4321 */
+  /** Dashboard port. @default 4700, or the next free port when that one is taken */
   port?: number,
   plugins?: VizPlugin[]
 }

@@ -1,0 +1,158 @@
+/*
+ * alchemy-viz design tokens. Every color follows the page's color scheme
+ * through light-dark(), so components never need a `dark:` variant and
+ * plugin views get light and dark mode for free by using these utilities:
+ *
+ *   bg-canvas bg-surface bg-surface-2 bg-hover border-line border-line-strong
+ *   text-fg text-fg-muted text-fg-subtle
+ *   bg-accent text-accent-fg bg-accent-soft text-accent-soft-fg
+ *   ok / warn / danger / info, each with a -soft background
+ */
+
+:root {
+  color-scheme: light dark;
+
+  --av-canvas: light-dark(#fafafa, #0a0a0b);
+  --av-surface: light-dark(#ffffff, #111113);
+  --av-surface-2: light-dark(#f4f4f5, #18181b);
+  --av-hover: light-dark(#efeff1, #1e1e22);
+  --av-line: light-dark(#e4e4e7, #26262b);
+  --av-line-strong: light-dark(#d4d4d8, #3b3b42);
+  --av-fg: light-dark(#09090b, #ededef);
+  --av-fg-muted: light-dark(#52525b, #a1a1aa);
+  --av-fg-subtle: light-dark(#71717a, #7c7c86);
+
+  --av-accent: light-dark(#ea580c, #fb923c);
+  --av-accent-fg: light-dark(#ffffff, #1c0a02);
+  --av-accent-soft: light-dark(#fff1e6, #2b1609);
+  --av-accent-soft-fg: light-dark(#b23f05, #fdba8c);
+
+  --av-ok: light-dark(#15803d, #4ade80);
+  --av-ok-soft: light-dark(#e7f6ec, #0f2418);
+  --av-warn: light-dark(#a35200, #fbbf24);
+  --av-warn-soft: light-dark(#fdf3e1, #2a1f0b);
+  --av-danger: light-dark(#d01f1f, #f87171);
+  --av-danger-soft: light-dark(#fdecec, #2c1213);
+  --av-info: light-dark(#1d5fd8, #7cacf8);
+  --av-info-soft: light-dark(#e9f0fd, #111d33);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-canvas: var(--av-canvas);
+  --color-surface: var(--av-surface);
+  --color-surface-2: var(--av-surface-2);
+  --color-hover: var(--av-hover);
+  --color-line: var(--av-line);
+  --color-line-strong: var(--av-line-strong);
+  --color-fg: var(--av-fg);
+  --color-fg-muted: var(--av-fg-muted);
+  --color-fg-subtle: var(--av-fg-subtle);
+  --color-accent: var(--av-accent);
+  --color-accent-fg: var(--av-accent-fg);
+  --color-accent-soft: var(--av-accent-soft);
+  --color-accent-soft-fg: var(--av-accent-soft-fg);
+  --color-ok: var(--av-ok);
+  --color-ok-soft: var(--av-ok-soft);
+  --color-warn: var(--av-warn);
+  --color-warn-soft: var(--av-warn-soft);
+  --color-danger: var(--av-danger);
+  --color-danger-soft: var(--av-danger-soft);
+  --color-info: var(--av-info);
+  --color-info-soft: var(--av-info-soft);
+
+  --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+
+  --shadow-popup: 0 0 0 1px var(--av-line), 0 8px 24px -6px light-dark(rgb(0 0 0 / 0.14), rgb(0 0 0 / 0.6));
+}
+
+@layer base {
+  html,
+  body {
+    background: var(--av-canvas);
+    color: var(--av-fg);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--av-accent) 28%, transparent);
+  }
+
+  :focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--av-accent) 60%, transparent);
+    outline-offset: 1px;
+  }
+}
+
+/* Shiki renders both themes; pick one with the page's color scheme. */
+.shiki,
+.shiki span {
+  color: light-dark(var(--shiki-light), var(--shiki-dark));
+  background: transparent !important;
+}
+
+/* Toast stack, from the ui-sdk toast docs. */
+[data-slot="toast-region"] {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 60;
+  width: min(360px, calc(100vw - 32px));
+  height: var(--toast-front-height);
+}
+
+[data-slot="toast-region"][data-expanded] {
+  height: calc(var(--toast-stack-height) + (var(--toast-count) - 1) * 8px);
+}
+
+[data-slot="toast"] {
+  --y: calc(var(--toast-index) * -8px);
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: calc(100 - var(--toast-index));
+  overflow: hidden;
+  height: var(--toast-height);
+  translate: var(--toast-swipe-x, 0px) calc(var(--y) + var(--toast-swipe-y, 0px));
+  scale: calc(1 - var(--toast-index) * 0.04);
+  transition-property: translate, scale, opacity, height;
+  transition-duration: 300ms;
+  transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  user-select: none;
+}
+
+[data-slot="toast"]:not([data-front], [data-expanded]) {
+  height: var(--toast-front-height);
+}
+
+[data-slot="toast"][data-expanded] {
+  --y: calc(-1 * (var(--toast-offset) + var(--toast-index) * 8px));
+  scale: 1;
+}
+
+[data-slot="toast"][data-swiping] {
+  transition: none;
+}
+
+[data-slot="toast"][data-starting-style],
+[data-slot="toast"][data-ending-style] {
+  opacity: 0;
+  --y: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="toast"] {
+    transition-duration: 1ms;
+  }
+}

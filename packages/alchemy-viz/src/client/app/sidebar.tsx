@@ -1,148 +1,124 @@
-import { useMemo, useState } from "react";
-import type { StackInfo } from "../../types.ts";
-import { Button, Select } from "../../ui/index.ts";
-import { resourcePath } from "../index.tsx";
+import { Link } from "@tanstack/react-router";
+import { Activity, LayoutGrid, Monitor, Moon, RefreshCw, ScrollText, Search, Sun } from "lucide-react";
+import { type ReactNode, useContext, useMemo, useState } from "react";
+import { IconButton, Kbd, SegmentedControl, Select } from "../../ui/index.ts";
 import { ResourceIcon } from "./resource-icon.tsx";
-import type { Route } from "./router.ts";
+import { setTheme, storedTheme, type ThemeChoice } from "./theme.ts";
 import { typeLabel } from "./type-label.ts";
-import type { StackResponse } from "./use-stack.ts";
+import { StageContext, useRefresh, useStack } from "./use-stack.ts";
 
-function NavLink({
-  href,
-  active,
-  navigate,
-  children
-}: {
-  href: string,
-  active: boolean,
-  navigate: (p: string) => void,
-  children: React.ReactNode
-}) {
-  return (
-    <a
-      href={href}
-      className="viz-nav-link"
-      aria-current={active ? "page" : undefined}
-      onClick={e => {
-        if(e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
-        e.preventDefault();
-        navigate(href);
-      }}
-    >
-      {children}
-    </a>
-  );
+const navLink = "flex h-7 min-w-0 items-center gap-2 rounded-md px-2 text-[13px] text-fg-muted transition-colors hover:bg-hover hover:text-fg data-[status=active]:bg-hover data-[status=active]:font-medium data-[status=active]:text-fg [&_svg]:size-3.5 [&_svg]:shrink-0";
+
+function GroupTitle({ children }: { children: ReactNode }) {
+  return <div className="truncate px-2 pb-1 text-[11px] font-medium text-fg-subtle">{children}</div>;
 }
 
-export function Sidebar({
-  data,
-  route,
-  navigate,
-  onStage,
-  onRefresh,
-  refreshing
-}: {
-  data: StackResponse | undefined,
-  route: Route,
-  navigate: (p: string) => void,
-  onStage: (stage: string) => void,
-  onRefresh: () => void,
-  refreshing: boolean
-}) {
-  const [filter, setFilter] = useState("");
-  const stack: StackInfo | undefined = data?.stack;
+export function Sidebar({ onSearch }: { onSearch: () => void }) {
+  const { data } = useStack();
+  const { setStage } = useContext(StageContext);
+  const refresh = useRefresh();
+  const [theme, setThemeState] = useState<ThemeChoice>(storedTheme);
+  const stack = data?.stack;
+
   const groups = useMemo(() => {
-    const q = filter.trim().toLowerCase();
-    const byType = new Map<string, StackInfo["resources"]>();
-    for(const r of stack?.resources ?? []) {
-      if(q && !`${r.fqn} ${r.type}`.toLowerCase().includes(q)) continue;
-      byType.set(r.type, [...(byType.get(r.type) ?? []), r]);
-    }
+    const byType = new Map<string, NonNullable<typeof stack>["resources"]>();
+    for(const r of stack?.resources ?? []) byType.set(r.type, [...(byType.get(r.type) ?? []), r]);
     return [...byType.entries()].sort(([a], [b]) => a.localeCompare(b));
-  }, [stack, filter]);
+  }, [stack]);
 
   return (
-    <aside className="viz-sidebar">
-      <div className="viz-brand">
-        <svg width="18" height="18" viewBox="0 0 32 32" aria-hidden>
+    <aside className="flex flex-col gap-4 border-b border-line bg-surface px-3 py-4 lg:sticky lg:top-0 lg:h-dvh lg:overflow-y-auto lg:border-r lg:border-b-0">
+      <div className="flex items-center gap-2 px-2">
+        <svg width="16" height="16" viewBox="0 0 32 32" aria-hidden>
           <path d="M12 3h8v2h-2v7l8 14a2 2 0 0 1-2 3H8a2 2 0 0 1-2-3l8-14V5h-2z" fill="var(--av-accent)" />
         </svg>
-        <span>alchemy-viz</span>
+        <span className="text-[13px] font-semibold tracking-tight">alchemy-viz</span>
       </div>
 
       {stack && (
-        <div className="viz-stack-card">
-          <div className="viz-stack-name av-truncate" title={stack.name}>
-            {stack.name}
-          </div>
-          <div className="av-row" style={{ gap: 6 }}>
+        <div className="flex flex-col gap-2 rounded-lg border border-line bg-surface-2/60 p-2.5">
+          <div className="truncate px-0.5 text-[13px] font-medium" title={stack.name}>{stack.name}</div>
+          <div className="flex items-center gap-1.5">
             <Select
               aria-label="Stage"
+              className="h-7 flex-1 text-xs"
               value={stack.stage}
-              options={stack.stages}
-              onChange={e => onStage(e.target.value)}
-              style={{ flex: 1, height: 28, fontSize: 12 }}
+              onValueChange={setStage}
+              options={stack.stages.map(s => ({ value: s, label: s }))}
             />
-            <Button size="sm" onClick={onRefresh} loading={refreshing} aria-label="Refresh" title="Refresh">
-              {!refreshing && "↻"}
-            </Button>
+            <IconButton label="Refresh" variant="default" onClick={() => refresh()}>
+              <RefreshCw />
+            </IconButton>
           </div>
         </div>
       )}
 
-      <nav className="viz-nav">
-        <NavLink href="/" active={route.name === "overview"} navigate={navigate}>
+      <button
+        type="button"
+        onClick={onSearch}
+        className="flex h-8 items-center gap-2 rounded-md border border-line bg-surface px-2.5 text-[13px] text-fg-subtle shadow-xs transition-colors hover:border-line-strong hover:text-fg-muted"
+      >
+        <Search className="size-3.5" />
+        <span className="flex-1 text-left">Search</span>
+        <Kbd>⌘K</Kbd>
+      </button>
+
+      <nav className="flex flex-col gap-0.5" aria-label="Dashboard">
+        <Link to="/" activeOptions={{ exact: true }} className={navLink}>
+          <LayoutGrid />
           Overview
-        </NavLink>
-        <NavLink href="/logs" active={route.name === "logs"} navigate={navigate}>
+        </Link>
+        <Link to="/logs" className={navLink}>
+          <ScrollText />
           Logs
-        </NavLink>
+        </Link>
         {data?.pages.map(p => (
-          <NavLink
-            key={p.id}
-            href={`/pages/${encodeURIComponent(p.route)}`}
-            active={route.name === "page" && route.route === p.route}
-            navigate={navigate}
-          >
+          <Link key={p.id} to="/pages/$" params={{ _splat: p.route }} className={navLink}>
+            <Activity />
             {p.title}
-          </NavLink>
+          </Link>
         ))}
       </nav>
 
-      <div className="viz-resources">
-        <input
-          className="av-input"
-          placeholder="Filter resources"
-          value={filter}
-          onChange={e => setFilter(e.target.value)}
-          aria-label="Filter resources"
-          style={{ width: "100%", height: 30 }}
-        />
+      <nav className="flex flex-1 flex-col gap-3" aria-label="Resources">
         {groups.map(([type, resources]) => {
           const label = typeLabel(type);
           return (
-            <div key={type} className="viz-group">
-              <div className="viz-group-title" title={type}>
-                {label.provider && <span className="av-muted">{label.provider} · </span>}
-                {label.name}
+            <div key={type}>
+              <GroupTitle>
+                <span title={type}>
+                  {label.provider && `${label.provider} · `}
+                  {label.name}
+                </span>
+              </GroupTitle>
+              <div className="flex flex-col gap-0.5">
+                {resources.map(r => (
+                  <Link key={r.fqn} to="/r/$fqn" params={{ fqn: r.fqn }} className={navLink}>
+                    <ResourceIcon type={r.type} size={18} />
+                    <span className="truncate">{r.fqn}</span>
+                    {r.mode === "live" && <span className="ml-auto text-[10px] font-semibold text-warn uppercase">cloud</span>}
+                  </Link>
+                ))}
               </div>
-              {resources.map(r => (
-                <NavLink
-                  key={r.fqn}
-                  href={resourcePath(r.fqn)}
-                  active={route.name === "resource" && route.fqn === r.fqn}
-                  navigate={navigate}
-                >
-                  <ResourceIcon type={r.type} size={18} />
-                  <span className="av-truncate av-grow">{r.fqn}</span>
-                  {r.mode === "live" && <span className="viz-live" title="Pinned to the cloud">live</span>}
-                </NavLink>
-              ))}
             </div>
           );
         })}
-        {stack && groups.length === 0 && <div className="av-muted" style={{ fontSize: 12, padding: "4px 2px" }}>No matches</div>}
-      </div>
+      </nav>
+
+      <SegmentedControl<ThemeChoice>
+        aria-label="Theme"
+        className="self-start"
+        value={theme}
+        onValueChange={choice => {
+          setTheme(choice);
+          setThemeState(choice);
+        }}
+        options={[
+          { value: "system", label: <Monitor aria-label="System" />, text: "System" },
+          { value: "light", label: <Sun aria-label="Light" />, text: "Light" },
+          { value: "dark", label: <Moon aria-label="Dark" />, text: "Dark" }
+        ]}
+      />
     </aside>
   );
 }
