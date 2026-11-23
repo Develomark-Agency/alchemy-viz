@@ -86,7 +86,7 @@ export default defineConfig({
 - `server` and `view` can be a path relative to the config file, an absolute path, a `file:` URL (`new URL("./view.tsx", import.meta.url)` in a published plugin), or a package specifier (`"my-plugin/views/table"`).
 - Listing `plugins` replaces the defaults, so include `cloudflare()` if you want it. When two plugins match the same type, the earlier one wins.
 - The config is validated at startup, so a mistake names the field that's wrong.
-- CLI flags: `--stage`, `--port`, `--config`.
+- CLI flags: `--stage` (or `ALCHEMY_STAGE`), `--port`, `--config`; `alchemy-viz --help` lists them. Set `VIZ_DEBUG=1` to see Vite's own output.
 
 ## Writing a view
 

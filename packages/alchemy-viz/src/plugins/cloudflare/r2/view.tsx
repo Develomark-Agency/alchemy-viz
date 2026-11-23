@@ -3,6 +3,7 @@ import { useMemo, useRef } from "react";
 import { type Api, defineView, useUrlState } from "../../../client/index.tsx";
 import {
   Button,
+  cn,
   CodeBlock,
   ContentPreview,
   type Column,
@@ -13,8 +14,7 @@ import {
   formatBytes,
   formatTime,
   IconButton,
-  JsonInspector,
-  KeyValueList,
+  PropertyList,
   languageFor,
   LinkButton,
   Loading,
@@ -24,7 +24,7 @@ import {
   toast,
   useSplitSideBySide
 } from "../../../ui/index.ts";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type server from "./server.ts";
 import type { ObjectInfo } from "./server.ts";
 
@@ -140,7 +140,7 @@ export default defineView<typeof server>(({ api }) => {
   );
 
   if(!selected) return list;
-  return <Split leftWidth={560} left={list} right={<ObjectDetail key={selected} objectKey={selected} api={api} onClose={() => setSelected(undefined)} />} />;
+  return <Split leftWidth={560} left={list} right={<ObjectDetail objectKey={selected} api={api} onClose={() => setSelected(undefined)} />} />;
 });
 
 /**
@@ -166,6 +166,7 @@ function ObjectDetail({ objectKey, api, onClose }: { objectKey: string, api: R2A
 
   const text = useQuery({
     queryKey: [...api.object.key({ key: objectKey }), o?.etag],
+    placeholderData: keepPreviousData,
     queryFn: async () => (await fetch(api.object.url({ key: objectKey }))).text(),
     enabled: isText
   });
@@ -176,7 +177,7 @@ function ObjectDetail({ objectKey, api, onClose }: { objectKey: string, api: R2A
 
   return (
     <Panel
-      className="animate-in fade-in duration-150 ease-out"
+      className={cn("animate-in fade-in transition-opacity duration-150 ease-out", (head.isPlaceholderData || (isText && text.isPlaceholderData)) && "opacity-60")}
       title={<span className="truncate font-mono text-xs">{o.key.split("/").pop()}</span>}
       actions={(
         <>
@@ -199,16 +200,19 @@ function ObjectDetail({ objectKey, api, onClose }: { objectKey: string, api: R2A
       )}
     >
       <div className="flex flex-col gap-4">
-        <KeyValueList
+        {/* Full-bleed rows inside the padded panel body, so hover fills the width. */}
+        <PropertyList
+          className="-mx-4 -mt-3"
           items={[
-            ["Key", <span className="font-mono text-xs">{o.key}</span>],
-            ["Size", formatBytes(o.size)],
-            ["Type", o.contentType],
-            ["Uploaded", formatTime(o.uploaded)],
-            ["ETag", <span className="font-mono text-xs">{o.etag}</span>]
+            { key: "Key", value: o.key },
+            { key: "Size", value: o.size, display: <span className="font-mono text-xs">{formatBytes(o.size)} <span className="text-fg-subtle">({o.size.toLocaleString()} B)</span></span> },
+            { key: "Type", value: o.contentType ?? "unknown" },
+            { key: "Uploaded", value: o.uploaded, display: <span className="font-mono text-xs">{formatTime(o.uploaded)}</span> },
+            { key: "ETag", value: o.etag },
+            // R2 custom metadata is flat strings, so it reads best as more rows.
+            ...Object.entries(o.customMetadata ?? {}).map(([key, value]) => ({ key, value }))
           ]}
         />
-        {o.customMetadata && <JsonInspector value={o.customMetadata} label="Custom metadata" />}
         {isImage && kind !== "svg" && <img src={api.object.url({ key: objectKey })} alt={o.key} className="max-h-96 max-w-full rounded-md border border-line object-contain" />}
         {isText && (text.data === undefined
           ? <Loading />

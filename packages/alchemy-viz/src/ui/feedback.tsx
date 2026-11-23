@@ -1,7 +1,7 @@
 import { CircleAlert, Cloud, ExternalLink, Info, Laptop, TriangleAlert } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { buttonClass } from "./button.tsx";
-import { cn } from "./cn.ts";
+import { cn } from "cn";
 
 export type Tone = "neutral" | "accent" | "ok" | "warn" | "danger" | "info";
 
@@ -69,11 +69,31 @@ export function Spinner({ className }: { className?: string }) {
   return <span role="status" aria-label="Loading" className={cn("inline-block size-3.5 animate-spin rounded-full border-2 border-line-strong border-t-accent motion-reduce:animate-[spin_2s_linear_infinite]", className)} />;
 }
 
-export function Loading({ label = "Loading…" }: { label?: string }) {
+/**
+ * True once `delay` ms have passed. Loading states wait this long before
+ * showing, so data that arrives quickly never flashes a spinner.
+ */
+export function useDelayed(delay = 200) {
+  const [ready, setReady] = useState(delay <= 0);
+  useEffect(() => {
+    if(delay <= 0) return;
+    const timer = setTimeout(() => setReady(true), delay);
+    return () => clearTimeout(timer);
+  }, [delay]);
+  return ready;
+}
+
+/** Shows after a short grace period, then fades in; keeps its height so nothing jumps. */
+export function Loading({ label = "Loading…", delay = 200 }: { label?: string, delay?: number }) {
+  const show = useDelayed(delay);
   return (
-    <div className="flex items-center justify-center gap-2 py-10 text-[13px] text-fg-muted">
-      <Spinner />
-      {label}
+    <div className="flex min-h-24 items-center justify-center gap-2 py-10 text-[13px] text-fg-muted">
+      {show && (
+        <span className="flex items-center gap-2 animate-in fade-in duration-300 ease-out">
+          <Spinner />
+          {label}
+        </span>
+      )}
     </div>
   );
 }

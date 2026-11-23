@@ -52,7 +52,7 @@ export default defineView<typeof server>(({ resource, stack, api }) => {
   }
 
   return (
-    <Panel title="Feature flags" actions={<Path path={resource.attr.file} home={stack.home} className="max-w-80 text-fg-subtle" />} flush>
+    <Panel className="max-w-4xl" title="Feature flags" actions={<Path path={resource.attr.file} home={stack.home} className="max-w-80 text-fg-subtle" />} flush>
       <ErrorBanner error={set.error ?? remove.error} className="m-3" />
       <DataTable rows={flags.data} loading={flags.isPending} error={flags.error} columns={columns} getRowId={f => f.name} empty="No flags" />
       <form

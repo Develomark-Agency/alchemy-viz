@@ -41,8 +41,12 @@ export function LogsPanel({ fqn, showSource }: { fqn?: string, showSource?: bool
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-3 border-b border-line px-3 py-2">
-        <SearchInput aria-label="Filter logs" placeholder="Filter" value={filter} onValueChange={setFilter} className="min-w-40 flex-1" />
+      {/* Equal padding on every side, so the input sits evenly in the panel's corner. */}
+      <div className="flex flex-wrap items-center gap-3 border-b border-line p-2 pr-3">
+        <SearchInput aria-label="Filter logs" placeholder="Filter" value={filter} onValueChange={setFilter} className="w-56" />
+        <span className="mr-auto text-xs text-fg-subtle tabular-nums">
+          {filter.trim() ? `${shown.length.toLocaleString()} matching` : `${shown.length.toLocaleString()} lines`}
+        </span>
         <label className="flex items-center gap-2 text-xs text-fg-muted">
           <Switch checked={follow} onCheckedChange={setFollow} />
           Live

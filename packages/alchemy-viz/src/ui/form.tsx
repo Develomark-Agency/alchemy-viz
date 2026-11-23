@@ -6,7 +6,8 @@ import { SwitchThumb, Switch as SwitchPart } from "@ui-sdk/react/switch";
 import { Textarea as TextareaPart } from "@ui-sdk/react/textarea";
 import { Check, ChevronsUpDown, Search, X } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
-import { cn } from "./cn.ts";
+import { useAfterFirstFrame } from "./tabs.tsx";
+import { cn } from "cn";
 import { withClass } from "./with-class.ts";
 
 const control = "rounded-md border border-line-strong bg-surface text-[13px] text-fg shadow-xs transition-colors placeholder:text-fg-subtle hover:border-fg-subtle/60 focus-visible:border-accent focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-accent/20 data-disabled:opacity-50";
@@ -106,7 +107,7 @@ function labelText(o: Option | undefined) {
 
 export const popupList = "z-50 max-h-[min(var(--available-height),320px)] min-w-(--anchor-width) overflow-y-auto rounded-lg border border-line bg-surface p-1 text-[13px] shadow-popup outline-none origin-(--transform-origin) transition-[opacity,scale] duration-150 ease-out data-starting-style:scale-97 data-starting-style:opacity-0 data-ending-style:opacity-0";
 
-export const popupItem = "flex h-7 cursor-default items-center gap-2 rounded-md px-2 outline-none select-none data-disabled:opacity-50 data-highlighted:bg-hover";
+export const popupItem = "flex h-7 cursor-default items-center gap-2 rounded-sm px-2 outline-none select-none data-disabled:opacity-50 data-highlighted:bg-hover";
 
 /** A compact row of mutually exclusive choices. */
 export function SegmentedControl<T extends string>({
@@ -122,6 +123,7 @@ export function SegmentedControl<T extends string>({
   className?: string,
   "aria-label": string
 }) {
+  const ready = useAfterFirstFrame();
   return (
     <SegmentedControlPart<T>
       aria-label={ariaLabel}
@@ -129,9 +131,9 @@ export function SegmentedControl<T extends string>({
       onValueChange={v => v !== null && onValueChange(v)}
       className={cn("relative inline-flex h-8 items-center rounded-md border border-line bg-surface-2 p-0.5", className)}
     >
-      <SegmentedControlIndicator className="absolute top-(--segmented-control-indicator-top) left-(--segmented-control-indicator-left) h-(--segmented-control-indicator-height) w-(--segmented-control-indicator-width) rounded-[5px] bg-surface shadow-xs ring-1 ring-line transition-[left,width] duration-200 ease-in-out motion-reduce:transition-none" />
+      <SegmentedControlIndicator className={cn("absolute top-(--segmented-control-indicator-top) left-(--segmented-control-indicator-left) h-(--segmented-control-indicator-height) w-(--segmented-control-indicator-width) rounded-sm bg-surface shadow-xs ring-1 ring-line motion-reduce:transition-none", ready && "transition-[left,width] duration-200 ease-in-out")} />
       {options.map(o => (
-        <SegmentedControlItem key={o.value} value={o.value} className="relative z-1 inline-flex h-full items-center gap-1.5 rounded-[5px] px-2.5 text-xs font-medium text-fg-muted transition-colors hover:text-fg data-checked:text-fg [&_svg]:size-3.5">
+        <SegmentedControlItem key={o.value} value={o.value} className="relative z-1 inline-flex h-full items-center gap-1.5 rounded-sm px-2.5 text-xs font-medium text-fg-muted transition-colors hover:text-fg data-checked:text-fg [&_svg]:size-3.5">
           {o.label}
         </SegmentedControlItem>
       ))}

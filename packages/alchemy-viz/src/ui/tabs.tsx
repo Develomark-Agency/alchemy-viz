@@ -1,5 +1,6 @@
 import { TabsIndicator, TabsList as TabsListPart, Tabs as TabsPart, TabsPanel as TabsPanelPart, TabsTab as TabsTabPart } from "@ui-sdk/react/tabs";
-import type { ComponentProps, ReactNode } from "react";
+import { type ComponentProps, type ReactNode, useEffect, useState } from "react";
+import { cn } from "cn";
 import { withClass } from "./with-class.ts";
 
 export function Tabs({ className, ...rest }: ComponentProps<typeof TabsPart>) {
@@ -7,11 +8,22 @@ export function Tabs({ className, ...rest }: ComponentProps<typeof TabsPart>) {
 }
 
 /** An underlined tab row. The indicator slides to the selected tab. */
+/** False for the first frame, so an indicator lands in place instead of sliding in from the edge. */
+export function useAfterFirstFrame() {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => requestAnimationFrame(() => setReady(true)));
+    return () => cancelAnimationFrame(id);
+  }, []);
+  return ready;
+}
+
 export function TabsList({ className, children, ...rest }: Omit<ComponentProps<typeof TabsListPart>, "children"> & { children?: ReactNode }) {
+  const ready = useAfterFirstFrame();
   return (
     <TabsListPart {...rest} className={withClass("relative flex min-w-0 items-center gap-1 overflow-x-auto border-b border-line [scrollbar-width:none]", className)}>
       {children}
-      <TabsIndicator className="absolute bottom-0 left-(--active-tab-left) h-0.5 w-(--active-tab-width) rounded-full bg-fg transition-[left,width] duration-200 ease-in-out motion-reduce:transition-none" />
+      <TabsIndicator className={cn("absolute bottom-0 left-(--active-tab-left) h-0.5 w-(--active-tab-width) rounded-full bg-fg motion-reduce:transition-none", ready && "transition-[left,width] duration-200 ease-in-out")} />
     </TabsListPart>
   );
 }

@@ -9,9 +9,9 @@ import {
   useTable
 } from "@tanstack/react-table";
 import { useVirtualizer, useWindowVirtualizer } from "@tanstack/react-virtual";
-import { ArrowDown, ArrowUp } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { type KeyboardEvent, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { cn } from "./cn.ts";
+import { cn } from "cn";
 import { EmptyState, ErrorBanner, Loading, Spinner } from "./feedback.tsx";
 import { formatTime } from "./format.ts";
 
@@ -31,7 +31,9 @@ export interface Column<Row> {
   /** Width in pixels. Columns can be resized by dragging their edge. */
   size?: number,
   align?: "left" | "right",
-  sortable?: boolean
+  sortable?: boolean,
+  /** Shades the column, e.g. a primary key, so it reads as the row's identity. */
+  emphasis?: boolean
 }
 
 /** Shows any value in a cell: null as a muted label, objects as JSON. */
@@ -43,11 +45,29 @@ export function formatCell(value: unknown): ReactNode {
   return String(value);
 }
 
-/** Columns from the keys of the rows, for data without a fixed shape. */
+/**
+ * A starting width for a column from its header and a sample of its values,
+ * so short columns stay short. Uses the 80th percentile, so one long value
+ * doesn't widen the whole column.
+ */
+export function fitColumnWidth(rows: Array<Record<string, unknown>>, id: string, headerChars = id.length) {
+  const sample = rows.slice(0, 50).map(r => {
+    const v = r[id];
+    return v === null || v === undefined ? 4 : typeof v === "object" ? JSON.stringify(v).length : String(v).length;
+  }).sort((a, b) => a - b);
+  const content = sample[Math.floor(sample.length * 0.8)] ?? 0;
+  return Math.round(Math.min(Math.max(Math.max(content, headerChars) * 7.4 + 32, 72), 340));
+}
+
+/** Columns from the keys of the rows, for data without a fixed shape. Numeric columns align right. */
 export function inferColumns<Row extends Record<string, unknown>>(rows: Row[]): Array<Column<Row>> {
   const keys = new Set<string>();
   for(const r of rows.slice(0, 100)) for(const k of Object.keys(r)) keys.add(k);
-  return [...keys].map(k => ({ id: k, header: k }));
+  return [...keys].map(k => {
+    const values = rows.slice(0, 100).map(r => r[k]).filter(v => v !== null && v !== undefined);
+    const numeric = values.length > 0 && values.every(v => typeof v === "number");
+    return { id: k, header: k, size: fitColumnWidth(rows, k), align: numeric ? "right" : "left" };
+  });
 }
 
 function compare(a: unknown, b: unknown) {
@@ -183,7 +203,12 @@ export function DataTable<Row extends RowData>({
                   return (
                     <th
                       key={header.id}
-                      className={cn("group/th relative flex h-8 items-center text-left text-xs font-medium text-fg-muted", last && "flex-1")}
+                      className={cn(
+                        "group/th relative flex h-8 items-center text-left text-xs font-medium text-fg-muted transition-colors duration-150 ease-out",
+                        last && "flex-1",
+                        col.emphasis && "bg-hover text-fg",
+                        sorted && "bg-accent-soft text-accent-soft-fg"
+                      )}
                       style={{ width: header.getSize(), minWidth: last ? header.getSize() : undefined }}
                       aria-sort={sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : undefined}
                     >
@@ -191,11 +216,12 @@ export function DataTable<Row extends RowData>({
                         <button
                           type="button"
                           onClick={header.column.getToggleSortingHandler()}
-                          className={cn("flex h-full min-w-0 flex-1 items-center gap-1 px-3 hover:text-fg", col.align === "right" && "justify-end")}
+                          className={cn("flex h-full min-w-0 flex-1 items-center gap-1 px-3 hover:text-fg", col.align === "right" && "flex-row-reverse justify-start")}
                         >
                           <span className="truncate">{col.header}</span>
-                          {sorted === "asc" && <ArrowUp className="size-3 shrink-0" />}
-                          {sorted === "desc" && <ArrowDown className="size-3 shrink-0" />}
+                          {sorted === "asc" && <ArrowUp className="size-3 shrink-0 text-accent" />}
+                          {sorted === "desc" && <ArrowDown className="size-3 shrink-0 text-accent" />}
+                          {!sorted && <ArrowUpDown className="size-3 shrink-0 opacity-0 transition-opacity duration-150 group-hover/th:opacity-50" />}
                         </button>
                       ) : (
                         <span className="truncate px-3">{col.header}</span>
@@ -226,7 +252,8 @@ export function DataTable<Row extends RowData>({
                   onKeyDown={onRowClick ? e => onRowKey(e, row.original) : undefined}
                   className={cn(
                     "absolute flex w-full border-b border-line outline-offset-[-2px]",
-                    onRowClick && "cursor-pointer transition-colors duration-100 ease-out hover:bg-hover",
+                    // A clickable row acts like a button: clicking (or double-clicking) it shouldn't highlight text.
+                    onRowClick && "cursor-pointer transition-colors duration-100 ease-out select-none hover:bg-hover",
                     selected && "bg-accent-soft hover:bg-accent-soft"
                   )}
                   style={{ height: ROW_HEIGHT, transform: `translateY(${item.start - (page ? bodyTop : 0)}px)` }}
@@ -237,7 +264,13 @@ export function DataTable<Row extends RowData>({
                     return (
                       <td
                         key={cell.id}
-                        className={cn("flex items-center overflow-hidden px-3 whitespace-nowrap", last && "flex-1", col.align === "right" && "justify-end")}
+                        className={cn(
+                          "flex items-center overflow-hidden px-3 whitespace-nowrap",
+                          last && "flex-1",
+                          col.align === "right" && "justify-end",
+                          col.emphasis && "bg-surface-2 font-medium",
+                          cell.column.getIsSorted() && "bg-accent-soft/30"
+                        )}
                         style={{ width: cell.column.getSize(), minWidth: last ? cell.column.getSize() : undefined }}
                       >
                         <span className="truncate">{col.cell ? col.cell(row.original) : formatCell(cell.getValue())}</span>
@@ -251,7 +284,9 @@ export function DataTable<Row extends RowData>({
         </table>
       </div>
       {(footer || loadingMore) && (
-        <div className="flex items-center justify-between gap-2 border-t border-line px-3 py-2 text-xs text-fg-muted">
+        // With the page scrolling, the footer pins to the bottom of the window
+        // instead of waiting at the end of a list that loads as you scroll.
+        <div className={cn("flex items-center justify-between gap-2 border-t border-line px-3 py-2 text-xs text-fg-muted", page && "sticky bottom-0 z-1 bg-surface")}>
           <span>{footer}</span>
           {loadingMore && <Spinner />}
         </div>

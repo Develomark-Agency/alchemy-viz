@@ -3,7 +3,7 @@ import { DialogBackdrop, DialogClose, DialogContent as DialogContentPart, Dialog
 import { X } from "lucide-react";
 import type { ComponentProps, ReactElement, ReactNode } from "react";
 import { type ButtonSize, type ButtonVariant, buttonClass } from "./button.tsx";
-import { cn } from "./cn.ts";
+import { cn } from "cn";
 import { toast } from "./toast.tsx";
 import { withClass } from "./with-class.ts";
 

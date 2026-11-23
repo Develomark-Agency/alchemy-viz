@@ -6,7 +6,7 @@ import { EditorView, keymap } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
 import CodeMirror, { type Extension } from "@uiw/react-codemirror";
 import { useMemo, useRef } from "react";
-import { cn } from "./cn.ts";
+import { cn } from "cn";
 
 // Colors come from the --av-* tokens, so the editor follows the page's
 // light or dark scheme without swapping themes.

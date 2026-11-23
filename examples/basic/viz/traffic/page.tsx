@@ -9,8 +9,8 @@ export default definePage<typeof server>(({ api }) => {
   const send = api.send.useMutation({ onSuccess: (_, input) => toast(`Sent ${input.count} requests`) });
 
   return (
-    <div className="flex flex-col gap-4">
-      <Panel title="Generate traffic">
+    <div className="flex flex-wrap items-start gap-4">
+      <Panel title="Generate traffic" className="w-80">
         <form
           className="flex flex-wrap items-end gap-3"
           onSubmit={e => {
@@ -28,14 +28,14 @@ export default definePage<typeof server>(({ api }) => {
           </Button>
         </form>
       </Panel>
-      <ErrorBanner error={send.error} />
+      <ErrorBanner error={send.error} className="w-full" />
       {send.data && (
-        <Panel title="Responses" flush>
+        <Panel title="Responses" flush className="w-[420px] max-w-full">
           <DataTable
             rows={send.data}
             getRowId={r => r.route}
             columns={[
-              { id: "route", header: "Route", size: 260, cell: r => <span className="font-mono text-xs">{r.route}</span> },
+              { id: "route", header: "Route", size: 300, cell: r => <span className="font-mono text-xs">{r.route}</span> },
               { id: "count", header: "Requests", size: 120, align: "right" }
             ]}
           />

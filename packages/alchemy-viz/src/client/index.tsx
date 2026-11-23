@@ -17,6 +17,7 @@
  */
 import {
   type InfiniteData,
+  keepPreviousData,
   type QueryKey,
   useInfiniteQuery as useInfiniteQueryBase,
   useMutation as useMutationBase,
@@ -119,13 +120,16 @@ function makeHandlerClient(target: RpcTarget, name: string): HandlerClient<any, 
     })}`,
     useQuery: (...args: any[]) => {
       const [input, options] = args as [unknown, QueryOptions<unknown> | undefined];
-      return useQueryBase({ queryKey: key(input), queryFn: () => call(input), ...options });
+      // Previous results stay up while a new input loads, so filters and
+      // selections swap content instead of flashing an empty state.
+      return useQueryBase({ queryKey: key(input), queryFn: () => call(input), placeholderData: keepPreviousData, ...options });
     },
     useInfiniteQuery: (input, options) => useInfiniteQueryBase({
       queryKey: [...key(input), "pages"],
       queryFn: ({ pageParam }) => call({ ...(input as object), cursor: pageParam }),
       initialPageParam: undefined as string | undefined,
       getNextPageParam: last => options.getNextCursor(last) ?? undefined,
+      placeholderData: keepPreviousData,
       enabled: options.enabled
     }),
     useMutation: options => {
@@ -213,6 +217,8 @@ export function useUrlState(name: string): [string | undefined, (value: string |
     (next: string | undefined) => navigate({
       to: ".",
       replace: true,
+      // Selecting a key or a table is state, not a new page: keep the scroll position.
+      resetScroll: false,
       search: (prev: Record<string, unknown>) => {
         const out = { ...prev };
         if(next === undefined || next === "") delete out[name];

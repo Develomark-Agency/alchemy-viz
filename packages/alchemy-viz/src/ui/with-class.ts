@@ -1,4 +1,4 @@
-import { cn } from "./cn.ts";
+import { cn } from "cn";
 
 type ClassName<S> = string | ((state: S) => string | undefined) | undefined;
 

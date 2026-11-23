@@ -1,9 +1,10 @@
 import { Plus, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { type Api, defineView, useUrlState } from "../../../client/index.tsx";
 import {
   Badge,
   Button,
+  cn,
   CodeEditor,
   type Column,
   ConfirmButton,
@@ -21,13 +22,13 @@ import {
   formatBytes,
   IconButton,
   Input,
-  JsonInspector,
-  KeyValueList,
   Loading,
   Panel,
+  PropertyList,
   SearchInput,
   Split,
-  toast
+  toast,
+  toProperties
 } from "../../../ui/index.ts";
 import type server from "./server.ts";
 import type { KvKey } from "./server.ts";
@@ -98,11 +99,12 @@ export default defineView<typeof server>(({ api }) => {
           </Panel>
         )}
         right={selected
-          ? <KeyDetail key={selected} name={selected} api={api} onDeleted={() => setSelected(undefined)} />
+          ? <KeyDetail name={selected} api={api} onDeleted={() => setSelected(undefined)} />
           : (
-            <Panel>
+            // A quiet hint rather than an empty panel the size of a real one.
+            <div className="rounded-lg border border-dashed border-line">
               <EmptyState title="Select a key">Pick a key to see and edit its value.</EmptyState>
-            </Panel>
+            </div>
           )}
       />
       <NewKeyDialog open={creating} onOpenChange={setCreating} api={api} onCreated={setSelected} />
@@ -115,6 +117,9 @@ function KeyDetail({ name, api, onDeleted }: { name: string, api: KvApi, onDelet
   const put = api.put.useMutation({ onSuccess: () => toast("Saved", { description: name }) });
   const del = api.delete.useMutation();
   const [draft, setDraft] = useState<string>();
+  // One panel serves every key; an unsaved edit belongs to the key it was made on.
+  useEffect(() => setDraft(undefined), [name]);
+  const stale = entry.isPlaceholderData;
 
   if(entry.error) return <ErrorBanner error={entry.error} />;
   if(!entry.data) return <Panel><Loading /></Panel>;
@@ -148,8 +153,13 @@ function KeyDetail({ name, api, onDeleted }: { name: string, api: KvApi, onDelet
 
   return (
     <Panel
-      className="animate-in fade-in duration-150 ease-out"
-      title={<span className="truncate font-mono text-xs">{name}</span>}
+      className={cn("animate-in fade-in transition-opacity duration-150 ease-out", stale && "opacity-60")}
+      title={(
+        <span className="flex min-w-0 items-baseline gap-2">
+          <span className="truncate font-mono text-xs">{name}</span>
+          <span className="shrink-0 text-xs font-normal text-fg-subtle">{json ? "JSON" : "Text"} · {formatBytes(new TextEncoder().encode(stored).length)}</span>
+        </span>
+      )}
       actions={(
         <ConfirmButton
           title={`Delete ${name}?`}
@@ -164,7 +174,6 @@ function KeyDetail({ name, api, onDeleted }: { name: string, api: KvApi, onDelet
       )}
     >
       <div className="flex flex-col gap-4">
-        <KeyValueList items={[["Size", formatBytes(new TextEncoder().encode(stored).length)], ["Format", json ? "JSON" : "Text"]]} />
         <CodeEditor aria-label="Value" value={value} onChange={setDraft} onSubmit={dirty ? save : undefined} language={json ? "json" : "text"} minHeight={160} />
         <ErrorBanner error={put.error} />
         <div className="flex justify-end gap-2">
@@ -174,10 +183,10 @@ function KeyDetail({ name, api, onDeleted }: { name: string, api: KvApi, onDelet
           </Button>
         </div>
         {entry.data.metadata != null && (
-          <div className="flex flex-col gap-2 border-t border-line pt-4">
-            <div className="text-xs font-medium text-fg-muted">Metadata</div>
-            <JsonInspector value={entry.data.metadata} label="Metadata" />
-          </div>
+          <PropertyList
+            className="-mx-4 -mb-4 border-t border-line"
+            sections={[{ title: "Metadata", items: typeof entry.data.metadata === "object" ? toProperties(entry.data.metadata) : [{ key: "value", value: entry.data.metadata }] }]}
+          />
         )}
       </div>
     </Panel>

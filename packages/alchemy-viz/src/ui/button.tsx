@@ -1,7 +1,7 @@
 import { Button as ButtonPart } from "@ui-sdk/react/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@ui-sdk/react/tooltip";
 import type { ComponentProps, ReactElement, ReactNode } from "react";
-import { cn } from "./cn.ts";
+import { cn } from "cn";
 import { withClass } from "./with-class.ts";
 
 export type ButtonVariant = "default" | "primary" | "danger" | "ghost";

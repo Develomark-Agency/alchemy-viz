@@ -280,6 +280,7 @@ try {
   // `exec()` and `batch()` don't survive the platform proxy; single statements do.
   const schema = [
     "DROP VIEW IF EXISTS order_totals",
+    "DROP TABLE IF EXISTS product_tags",
     "DROP TABLE IF EXISTS events",
     "DROP TABLE IF EXISTS order_items",
     "DROP TABLE IF EXISTS orders",
@@ -287,6 +288,7 @@ try {
     "CREATE TABLE products (id INTEGER PRIMARY KEY, sku TEXT NOT NULL UNIQUE, name TEXT NOT NULL, category TEXT NOT NULL, price_cents INTEGER NOT NULL, stock INTEGER NOT NULL, active INTEGER NOT NULL DEFAULT 1)",
     "CREATE TABLE orders (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id), status TEXT NOT NULL, total_cents INTEGER NOT NULL, currency TEXT NOT NULL DEFAULT 'USD', shipping_city TEXT, note TEXT, created_at TEXT NOT NULL)",
     "CREATE TABLE order_items (id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), product_id INTEGER NOT NULL REFERENCES products(id), quantity INTEGER NOT NULL, unit_price_cents INTEGER NOT NULL)",
+    "CREATE TABLE product_tags (product_id INTEGER NOT NULL REFERENCES products(id), tag TEXT NOT NULL, added_at TEXT NOT NULL, PRIMARY KEY (product_id, tag))",
     "CREATE TABLE events (id INTEGER PRIMARY KEY, type TEXT NOT NULL, user_id INTEGER, path TEXT, payload TEXT, at TEXT NOT NULL)",
     "CREATE VIEW order_totals AS SELECT u.name AS customer, COUNT(o.id) AS orders, SUM(o.total_cents) / 100.0 AS spent_usd FROM users u JOIN orders o ON o.user_id = u.id WHERE o.status NOT IN ('refunded', 'cancelled') GROUP BY u.id ORDER BY spent_usd DESC"
   ];
@@ -326,6 +328,13 @@ try {
     products.map(([name, category, price], i) => [`SKU-${String(1000 + i * 7)}`, name, category, price * 100, int(0, 250), rand() > 0.1 ? 1 : 0])
   );
 
+  const tagNames = ["bestseller", "new", "sale", "eco", "limited", "gift", "pro"];
+  const productTags: unknown[][] = [];
+  for(let id = 1; id <= products.length; id++) {
+    for(const tag of tagNames.filter(() => rand() > 0.6)) productTags.push([id, tag, isoDaysAgo(int(1, 200))]);
+  }
+  await insert("INSERT INTO product_tags (product_id, tag, added_at) VALUES (?, ?, ?)", productTags);
+
   const orders: unknown[][] = [];
   const items: unknown[][] = [];
   for(let id = 1; id <= 240; id++) {
@@ -355,7 +364,7 @@ try {
     events.push([type, rand() > 0.3 ? pick(userIds) : null, pick(paths), JSON.stringify(payload), isoDaysAgo(rand() * 30)]);
   }
   await insert("INSERT INTO events (type, user_id, path, payload, at) VALUES (?, ?, ?, ?, ?)", events);
-  console.log(`D1: ${userIds.length} users, ${products.length} products, ${orders.length} orders, ${items.length} order items, ${events.length} events, 1 view`);
+  console.log(`D1: ${userIds.length} users, ${products.length} products, ${productTags.length} product tags, ${orders.length} orders, ${items.length} order items, ${events.length} events, 1 view`);
 
   // ----- KV: keys of every shape -------------------------------------------
   console.log("KV: writing keys…");

@@ -22,7 +22,8 @@ export interface TableInfo {
 export interface ColumnInfo {
   name: string,
   type: string,
-  pk: boolean,
+  /** Position in the primary key, from 1; 0 when the column isn't part of it. */
+  pk: number,
   notnull: boolean
 }
 
@@ -35,7 +36,7 @@ async function listTables(d: D1Database) {
 
 async function columnsOf(d: D1Database, table: string): Promise<ColumnInfo[]> {
   const { results } = await d.prepare(`PRAGMA table_info(${quote(table)})`).all<{ name: string, type: string, pk: number, notnull: number }>();
-  return results.map(c => ({ name: c.name, type: c.type, pk: c.pk > 0, notnull: c.notnull === 1 }));
+  return results.map(c => ({ name: c.name, type: c.type, pk: c.pk, notnull: c.notnull === 1 }));
 }
 
 const PAGE = 100;

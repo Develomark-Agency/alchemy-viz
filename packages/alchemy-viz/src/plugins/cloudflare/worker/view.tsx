@@ -7,6 +7,8 @@ import {
   Button,
   CodeBlock,
   CodeEditor,
+  Collapse,
+  Disclosure,
   ContentPreview,
   EmptyState,
   ErrorBanner,
@@ -80,16 +82,19 @@ export default defineView<typeof server>(({ resource, stack, api }) => {
           ? <RequestTool api={api} url={url} />
           : <Panel><EmptyState title="No URL yet">The Worker hasn't reported where it serves. Is alchemy dev running?</EmptyState></Panel>}
       </div>
-      <aside className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-[calc(var(--topbar-h)+16px)]">
-        {url && (
-          <Panel title="Endpoint" flush>
-            <a href={url} target="_blank" rel="noreferrer" className="group flex items-center justify-between gap-3 px-4 py-3 transition-colors duration-150 ease-out hover:bg-hover">
-              <span className="truncate font-mono text-xs">{url.replace(/^https?:\/\//, "")}</span>
-              <ExternalLink className="size-3.5 shrink-0 text-fg-subtle group-hover:text-fg" />
-            </a>
-          </Panel>
-        )}
-        {crons.length > 0 && <CronPanel api={api} crons={crons} />}
+      {/* Beside the request tool on wide screens; below it, two columns instead of full-width strips. */}
+      <aside className="grid min-w-0 items-start gap-4 md:grid-cols-2 lg:sticky lg:top-[calc(var(--topbar-h)+16px)] lg:grid-cols-1">
+        <div className="flex min-w-0 flex-col gap-4 empty:hidden">
+          {url && (
+            <Panel title="Endpoint" flush>
+              <a href={url} target="_blank" rel="noreferrer" className="group flex items-center justify-between gap-3 px-4 py-3 transition-colors duration-150 ease-out hover:bg-hover">
+                <span className="truncate font-mono text-xs">{url.replace(/^https?:\/\//, "")}</span>
+                <ExternalLink className="size-3.5 shrink-0 text-fg-subtle group-hover:text-fg" />
+              </a>
+            </Panel>
+          )}
+          {crons.length > 0 && <CronPanel api={api} crons={crons} />}
+        </div>
         <Panel title={<>Bindings <span className="font-normal text-fg-subtle tabular-nums">{bindings.length}</span></>} flush>
           {bindings.length === 0
             ? <EmptyState title="No bindings" />
@@ -183,11 +188,15 @@ function RequestTool({ api, url }: { api: WorkerApi, url: string }) {
             Send
           </Button>
         </form>
-        {hasBody && <CodeEditor aria-label="Request body" value={body} onChange={setBody} onSubmit={submit} language="json" placeholder="Request body" minHeight={90} />}
-        <details className="group">
-          <summary className="cursor-pointer text-xs text-fg-muted select-none hover:text-fg">Headers</summary>
-          <Textarea aria-label="Request headers" className="mt-2" value={headers} onValueChange={setHeaders} placeholder={"content-type: application/json\nx-debug: 1"} rows={3} />
-        </details>
+        {/* The body editor opens and closes with the method instead of popping in; -mt-3 cancels the gap while it's closed. */}
+        <div className="-mt-3">
+          <Collapse open={hasBody} className="pt-3">
+            <CodeEditor aria-label="Request body" value={body} onChange={setBody} onSubmit={submit} language="json" placeholder="Request body" minHeight={90} />
+          </Collapse>
+        </div>
+        <Disclosure label="Headers">
+          <Textarea aria-label="Request headers" value={headers} onValueChange={setHeaders} placeholder={"content-type: application/json\nx-debug: 1"} rows={3} />
+        </Disclosure>
         <ErrorBanner error={send.error} />
         {res
           ? (

@@ -1,6 +1,6 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { type ReactNode, useEffect, useRef } from "react";
-import { cn } from "./cn.ts";
+import { cn } from "cn";
 import { EmptyState } from "./feedback.tsx";
 
 export interface LogEntry {

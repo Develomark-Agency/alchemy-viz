@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { BundledLanguage, HighlighterGeneric } from "shiki";
-import { cn } from "./cn.ts";
+import { cn } from "cn";
 
 const LANGS = ["json", "sql", "html", "xml", "css", "javascript", "typescript", "yaml", "markdown", "shellscript"] as const;
 export type CodeLanguage = (typeof LANGS)[number] | "text";

@@ -2,7 +2,7 @@ import { Menu, MenuContent, MenuGroupLabel, MenuItem, MenuItemIndicator, MenuRad
 import { NavigationMenu, NavigationMenuContent, NavigationMenuItem, NavigationMenuList, NavigationMenuTrigger } from "@ui-sdk/react/navigation-menu";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Activity, Check, ChevronDown, ChevronsUpDown, Layers, LayoutGrid, Monitor, Moon, RefreshCw, ScrollText, Search, Sun } from "lucide-react";
-import { type ReactNode, useContext, useRef, useState } from "react";
+import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { cn, IconButton, Kbd, Path } from "../../ui/index.ts";
 import { Megamenu } from "./megamenu.tsx";
@@ -18,7 +18,7 @@ const navItem = cn(
 );
 
 const popup = "z-50 min-w-56 rounded-lg border border-line bg-surface p-1 text-[13px] shadow-popup outline-none origin-(--transform-origin) transition-[opacity,scale] duration-150 ease-out data-starting-style:scale-97 data-starting-style:opacity-0 data-ending-style:opacity-0";
-const menuItem = "flex h-8 cursor-default items-center gap-2 rounded-md px-2 outline-none select-none data-disabled:opacity-50 data-highlighted:bg-hover [&_svg]:size-3.5";
+const menuItem = "flex h-8 cursor-default items-center gap-2 rounded-sm px-2 outline-none select-none data-disabled:opacity-50 data-highlighted:bg-hover [&_svg]:size-3.5";
 const groupLabel = "px-2 pt-1.5 pb-1 text-[11px] font-medium text-fg-subtle";
 
 function NavLabel({ children }: { children: ReactNode }) {
@@ -42,7 +42,7 @@ function ProjectSwitcher() {
       <MenuContent align="start" sideOffset={6} className={popup}>
         <div className="flex flex-col gap-0.5 px-2 pt-1.5 pb-2">
           <div className="font-medium">{stack.name}</div>
-          <Path path={stack.root} home={stack.home} className="max-w-64 text-[11px] text-fg-subtle" />
+          <Path path={stack.root} home={stack.home} className="max-w-80 text-[11px] text-fg-subtle" />
         </div>
         <MenuSeparator className="my-1 h-px bg-line" />
         <MenuRadioGroup value={stack.stage} onValueChange={value => setStage(String(value))}>
@@ -108,12 +108,51 @@ function ThemeMenu() {
   );
 }
 
+/** Spins while the state is re-read, for at least one turn so a fast refresh still registers. */
+function RefreshButton({ refresh }: { refresh: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <IconButton
+      label="Re-read state"
+      size="icon"
+      onClick={async () => {
+        if(busy) return;
+        setBusy(true);
+        try {
+          await Promise.all([refresh(), new Promise(r => setTimeout(r, 600))]);
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <RefreshCw className={cn(busy && "animate-spin [animation-duration:600ms]")} />
+    </IconButton>
+  );
+}
+
 export function TopBar({ onSearch }: { onSearch: () => void }) {
   const { data } = useStack();
   const refresh = useRefresh();
   const [open, setOpen] = useState<string | null>(null);
   const resourcesOpen = open === "resources";
   const onResource = useRouterState({ select: s => s.location.pathname.startsWith("/r/") });
+  const pathname = useRouterState({ select: s => s.location.pathname });
+  // Any navigation closes the menus, however it happened (a link on the page, back, the palette).
+  useEffect(() => setOpen(null), [pathname]);
+
+  // The open megamenu is modal (a scrim covers the page), so the page holds still
+  // under it: no scrolling, and no overscroll bounce pulling it away from the bar.
+  useEffect(() => {
+    if(!resourcesOpen) return;
+    const root = document.documentElement;
+    const { overflow, overscrollBehavior } = root.style;
+    root.style.overflow = "hidden";
+    root.style.overscrollBehavior = "none";
+    return () => {
+      root.style.overflow = overflow;
+      root.style.overscrollBehavior = overscrollBehavior;
+    };
+  }, [resourcesOpen]);
 
   return (
     <>
@@ -147,7 +186,12 @@ export function TopBar({ onSearch }: { onSearch: () => void }) {
                 align="start"
                 sideOffset={0}
                 collisionPadding={0}
-                className="z-40 w-(--anchor-width) border-b border-line bg-surface shadow-[0_18px_40px_-16px_rgb(0_0_0/0.25)] outline-none transition-[opacity,translate] duration-200 ease-out data-ending-style:-translate-y-1 data-ending-style:opacity-0 data-starting-style:-translate-y-1 data-starting-style:opacity-0 motion-reduce:transition-none"
+                // Drops in from under the bar: it's visible within 200ms, slides down by
+                // 320ms and the blur clears last (400ms), so the sharpening reads. It
+                // stays on its own compositor layer (will-change), so the blur and
+                // slide don't repaint the whole panel and its shadow every frame.
+                // Exits back up, faster.
+                className="z-40 w-(--anchor-width) border-b border-line bg-surface shadow-[0_18px_40px_-16px_rgb(0_0_0/0.25)] outline-none transition-[opacity,translate,filter] [transition-duration:200ms,320ms,400ms] ease-(--ease-out) will-change-[opacity,translate,filter] data-ending-style:-translate-y-2 data-ending-style:opacity-0 data-ending-style:blur-[4.5px] data-ending-style:[transition-duration:140ms,180ms,180ms] data-starting-style:-translate-y-3 data-starting-style:opacity-0 data-starting-style:blur-[8px] motion-reduce:data-starting-style:translate-y-0 motion-reduce:data-ending-style:translate-y-0 motion-reduce:data-starting-style:blur-none motion-reduce:data-ending-style:blur-none"
               >
                 {data && <Megamenu stack={data.stack} onNavigate={() => setOpen(null)} />}
               </NavigationMenuContent>
@@ -180,9 +224,7 @@ export function TopBar({ onSearch }: { onSearch: () => void }) {
             <span className="hidden flex-1 text-left text-[13px] lg:inline">Search resources…</span>
             <span className="hidden lg:inline-flex"><Kbd>⌘K</Kbd></span>
           </button>
-          <IconButton label="Re-read state" onClick={() => refresh()} size="icon">
-            <RefreshCw />
-          </IconButton>
+          <RefreshButton refresh={refresh} />
           <ThemeMenu />
         </div>
       </header>

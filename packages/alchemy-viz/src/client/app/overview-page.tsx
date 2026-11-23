@@ -8,23 +8,33 @@ import { ResourceIcon } from "./resource-icon.tsx";
 import { typeLabel } from "./type-label.ts";
 import { useStack } from "./use-stack.ts";
 
-function ResourceRow({ r }: { r: ResourceInfo }) {
+function ResourceTile({ r }: { r: ResourceInfo }) {
   return (
-    <li>
-      <Link
-        to="/r/$fqn"
-        params={{ fqn: r.fqn }}
-        className="group flex items-center gap-3 px-4 py-2.5 transition-colors duration-150 ease-out hover:bg-hover"
-      >
-        <ResourceIcon type={r.type} size={28} />
-        <span className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate text-[13px] font-medium">{r.fqn}</span>
-          <span className="truncate text-xs text-fg-subtle">{typeLabel(r.type).name}</span>
-        </span>
-        <RunsOn mode={r.mode} className="text-xs" />
-        <ChevronRight className="size-3.5 shrink-0 text-fg-subtle opacity-0 transition-opacity duration-150 ease-out group-hover:opacity-100" />
-      </Link>
-    </li>
+    <Link
+      to="/r/$fqn"
+      params={{ fqn: r.fqn }}
+      className="group flex items-center gap-3 rounded-lg border border-line bg-surface px-3 py-2.5 transition-[border-color,background-color] duration-150 ease-out hover:border-line-strong hover:bg-hover/40"
+    >
+      <ResourceIcon type={r.type} size={30} />
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-[13px] font-medium">{r.fqn}</span>
+        <span className="truncate text-xs text-fg-subtle">{typeLabel(r.type).name}</span>
+      </span>
+      <RunsOn mode={r.mode} className="text-xs" />
+      <ChevronRight className="size-3.5 shrink-0 -translate-x-1 text-fg-subtle opacity-0 transition-[opacity,translate] duration-150 ease-out group-hover:translate-x-0 group-hover:opacity-100" />
+    </Link>
+  );
+}
+
+function Section({ title, count, children }: { title: string, count?: number, children: ReactNode }) {
+  return (
+    <section className="flex flex-col gap-2.5">
+      <h2 className="flex items-baseline gap-2 text-[13px] font-semibold">
+        {title}
+        {count !== undefined && <span className="font-normal text-fg-subtle tabular-nums">{count}</span>}
+      </h2>
+      {children}
+    </section>
   );
 }
 
@@ -36,19 +46,6 @@ function OutputValue({ value, home }: { value: unknown, home: string }) {
   if(typeof value === "string" && value.startsWith("/")) return <Path path={value} home={home} />;
   if(typeof value === "string") return <span className="font-mono text-xs break-all">{value}</span>;
   return <JsonInspector value={value} label="Output" openDepth={1} />;
-}
-
-function Facts({ items }: { items: Array<[string, ReactNode]> }) {
-  return (
-    <dl className="flex flex-col divide-y divide-line">
-      {items.map(([k, v]) => (
-        <div key={k} className="flex min-w-0 items-baseline justify-between gap-4 px-4 py-2.5">
-          <dt className="shrink-0 text-xs text-fg-muted">{k}</dt>
-          <dd className="flex min-w-0 justify-end text-right">{v}</dd>
-        </div>
-      ))}
-    </dl>
-  );
 }
 
 export function OverviewPage() {
@@ -78,23 +75,30 @@ export function OverviewPage() {
           </Panel>
         )
         : (
-          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <>
             <Panel title="Graph" flush>
               <Graph resources={stack.resources} />
             </Panel>
-            <div className="flex min-w-0 flex-col gap-4">
-              <Panel title={<>Resources <span className="font-normal text-fg-subtle tabular-nums">{stack.resources.length}</span></>} flush>
-                <ul className="divide-y divide-line">
-                  {stack.resources.map(r => <ResourceRow key={r.fqn} r={r} />)}
-                </ul>
-              </Panel>
-              {output && output.length > 0 && (
-                <Panel title="Stack output" flush>
-                  <Facts items={output.map(([k, v]) => [k, <OutputValue value={v} home={stack.home} />])} />
-                </Panel>
-              )}
-            </div>
-          </div>
+            <Section title="Resources" count={stack.resources.length}>
+              <div className="grid gap-2 sm:grid-cols-[repeat(auto-fill,minmax(260px,1fr))]">
+                {stack.resources.map(r => <ResourceTile key={r.fqn} r={r} />)}
+              </div>
+            </Section>
+            {output && output.length > 0 && (
+              <Section title="Stack output">
+                <dl className="grid gap-2 sm:grid-cols-[repeat(auto-fill,minmax(320px,1fr))]">
+                  {output.map(([k, v]) => (
+                    <div key={k} className="flex min-w-0 flex-col gap-1 rounded-lg border border-line bg-surface px-3 py-2.5">
+                      <dt className="font-mono text-[11px] text-fg-subtle">{k}</dt>
+                      <dd className="flex min-w-0">
+                        <OutputValue value={v} home={stack.home} />
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </Section>
+            )}
+          </>
         )}
     </Page>
   );

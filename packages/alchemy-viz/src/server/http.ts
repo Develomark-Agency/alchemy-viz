@@ -221,6 +221,9 @@ export async function startServer(config: LoadedConfig) {
         "react/jsx-runtime",
         "react/jsx-dev-runtime",
         "elkjs/lib/elk.bundled.js",
+        // Found late they'd trigger a re-bundle mid-session, and an open tab would mix two copies of React.
+        "motion/react",
+        "cn",
         "@uiw/react-codemirror",
         "@codemirror/state",
         "@codemirror/view",
@@ -237,7 +240,8 @@ export async function startServer(config: LoadedConfig) {
         allow: [config.root, packageRoot, ...[...config.views, ...config.pages].map(entry => dirname(entry.view))]
       }
     },
-    logLevel: "warn"
+    // VIZ_DEBUG=1 shows Vite's own output, such as dependencies it finds late.
+    logLevel: process.env.VIZ_DEBUG ? "info" : "warn"
   });
 
   server.on("request", async (req: IncomingMessage, res: ServerResponse) => {

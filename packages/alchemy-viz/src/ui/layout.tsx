@@ -1,5 +1,5 @@
 import { createContext, type CSSProperties, type ReactNode, useContext, useLayoutEffect, useRef, useState } from "react";
-import { cn } from "./cn.ts";
+import { cn } from "cn";
 
 export function Page({
   title,
@@ -56,7 +56,8 @@ export function Panel({
       {(title || actions) && (
         <div className="flex min-h-11 flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-2">
           {title ? <h2 className="flex min-w-0 items-center gap-2 text-[13px] font-semibold">{title}</h2> : <span />}
-          {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+          {/* Pulled in so a button's right inset matches its top and bottom. */}
+          {actions && <div className="-mr-2 flex flex-wrap items-center gap-2">{actions}</div>}
         </div>
       )}
       <div className={cn("min-w-0", !flush && "p-4", bodyClassName)}>{children}</div>

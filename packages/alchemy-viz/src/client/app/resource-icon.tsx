@@ -26,8 +26,9 @@ export function ResourceIcon({ type, size = 20, className }: { type: string, siz
   return (
     <span
       aria-hidden
-      className={cn("inline-flex shrink-0 items-center justify-center rounded-md border border-line bg-surface text-fg-muted", className)}
-      style={{ width: size, height: size }}
+      className={cn("inline-flex shrink-0 items-center justify-center border border-line bg-surface text-fg-muted", className)}
+      // Radius scales with size, so a small icon isn't rounder than a large one.
+      style={{ width: size, height: size, borderRadius: Math.round(size * 0.19) }}
     >
       <Icon style={{ width: Math.round(size * 0.55), height: Math.round(size * 0.55) }} strokeWidth={1.75} />
     </span>

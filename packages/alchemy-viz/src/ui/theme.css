@@ -147,6 +147,11 @@ html.theme-switching *::after {
 }
 
 @layer base {
+  html {
+    /* Room for the scrollbar is always kept, so locking scroll (an open menu) never shifts the page sideways. */
+    scrollbar-gutter: stable;
+  }
+
   html,
   body {
     background: var(--av-canvas);
@@ -155,6 +160,17 @@ html.theme-switching *::after {
     font-size: 13px;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
+  }
+
+  /* Controls act on click; double-clicking one shouldn't highlight its label. */
+  button,
+  summary,
+  [role="button"],
+  [role="tab"],
+  [role="menuitem"],
+  [role="menuitemradio"],
+  [role="option"] {
+    user-select: none;
   }
 
   ::selection {

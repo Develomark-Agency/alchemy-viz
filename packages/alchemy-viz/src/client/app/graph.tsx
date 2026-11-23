@@ -99,6 +99,7 @@ export function Graph({ resources }: { resources: ResourceInfo[] }) {
     <div style={{ height }} className="[&_.react-flow__attribution]:bg-transparent [&_.react-flow__attribution_a]:text-fg-subtle [&_.react-flow__controls]:overflow-hidden [&_.react-flow__controls]:rounded-md [&_.react-flow__controls]:border [&_.react-flow__controls]:border-line [&_.react-flow__controls-button]:border-line [&_.react-flow__controls-button]:bg-surface [&_.react-flow__controls-button]:fill-fg-muted [&_.react-flow__controls-button:hover]:bg-hover">
       {positions && (
         <ReactFlow
+          className="animate-in fade-in duration-300 ease-out"
           key={shape}
           nodes={nodes}
           edges={edges}
