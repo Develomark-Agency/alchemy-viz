@@ -13,6 +13,8 @@ export interface ResourceInfo<Attr = any, Props = any> {
   type: string,
   /** Lifecycle status from state (`created`, `updated`, `creating`, ...). */
   status: string,
+  /** Why the last apply of this resource failed, when it did (state alone still says `creating`). */
+  error?: string,
   /** `local` when the resource runs in a local simulator, `live` when pinned to the cloud. */
   mode: "local" | "live" | undefined,
   props: Props,

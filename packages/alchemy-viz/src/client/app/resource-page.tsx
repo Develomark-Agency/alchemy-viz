@@ -2,7 +2,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
 import { views } from "virtual:alchemy-viz/registry";
 import type { ResourceInfo } from "../../types.ts";
-import { EmptyState, ExternalLinkCard, LinkButton, Page, Panel, PropertyList, type PropertySection, PropertyValue, RunsOn, StatusText, Tabs, TabsList, TabsPanel, TabsTab, toProperties } from "../../ui/index.ts";
+import { EmptyState, ErrorBanner, ExternalLinkCard, LinkButton, Page, Panel, PropertyList, type PropertySection, PropertyValue, RunsOn, StatusText, Tabs, TabsList, TabsPanel, TabsTab, toProperties } from "../../ui/index.ts";
 import { LogsPanel } from "./logs-panel.tsx";
 import { ViewHost } from "./plugin-host.tsx";
 import { ProviderTip } from "./providers.tsx";
@@ -138,6 +138,7 @@ export function ResourcePage() {
         </LinkButton>
       )}
     >
+      {resource.error && <ErrorBanner error={`Failed to apply: ${resource.error}`} className="mb-4" />}
       <Tabs
         value={active}
         // Keep the view's own URL state (D1's open console, a selected key)

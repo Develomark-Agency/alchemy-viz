@@ -9,6 +9,7 @@
  */
 import { homedir } from "node:os";
 import type { ResourceInfo, StackInfo } from "../types.ts";
+import { readLatestStatuses } from "./logs.ts";
 import { makeImportFromProject } from "./project.ts";
 
 interface PersistedRow {
@@ -64,6 +65,15 @@ export function makeStackReader(root: string, entrypoint: string) {
         downstream: row.downstream ?? [],
         upstream: []
       }));
+    // A failed apply leaves state at `creating`/`updating`; the run's log knows better.
+    const latest = await readLatestStatuses(root);
+    for(const r of resources) {
+      const event = latest.get(r.fqn);
+      if(event?.status === "fail" && /ing$/i.test(r.status)) {
+        r.status = "failed";
+        r.error = event.message;
+      }
+    }
     const byFqn = new Map(resources.map(r => [r.fqn, r]));
     for(const r of resources) {
       for(const d of r.downstream) byFqn.get(d)?.upstream.push(r.fqn);

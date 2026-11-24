@@ -20,6 +20,18 @@ export interface LogLine {
 
 const MAX_FILES = 5;
 
+export interface ResourceStatusEvent {
+  time: number,
+  status: string,
+  message?: string
+}
+
+function statusEventOf(entry: any): (ResourceStatusEvent & { fqn: string }) | undefined {
+  const d = entry.data;
+  if(entry.kind !== "event" || d?.type !== "apply.resource.status" || !d.fqn || typeof d.status !== "string") return undefined;
+  return { fqn: d.fqn, time: entry.time, status: d.status, message: typeof d.message === "string" ? d.message : undefined };
+}
+
 function messageOf(entry: any): string | undefined {
   if(entry.kind === "output") return entry.data?.text;
   if(entry.kind === "log") {
@@ -32,11 +44,9 @@ function messageOf(entry: any): string | undefined {
 }
 
 // Parsed-file cache keyed by path; a file is re-read only when it grows.
-const cache = new Map<string, { size: number, lines: LogLine[] }>();
+const cache = new Map<string, { size: number, lines: LogLine[], events: Array<ResourceStatusEvent & { fqn: string }> }>();
 
-export async function readLogs(
-  root: string,
-  options: { fqn?: string, since?: number, limit?: number } = {}): Promise<LogLine[]> {
+async function readFiles(root: string) {
   const dir = join(root, ".alchemy", "log");
   let files: string[];
   try {
@@ -44,17 +54,27 @@ export async function readLogs(
   } catch {
     return [];
   }
-  const all: LogLine[] = [];
+  const parsed: Array<{ lines: LogLine[], events: Array<ResourceStatusEvent & { fqn: string }> }> = [];
   for(const file of files) {
     const path = join(dir, file);
     const { size } = await stat(path);
     let cached = cache.get(path);
     if(!cached || cached.size !== size) {
       const lines: LogLine[] = [];
+      const events: Array<ResourceStatusEvent & { fqn: string }> = [];
       for(const raw of (await readFile(path, "utf8")).split("\n")) {
         if(!raw) continue;
         try {
           const entry = JSON.parse(raw);
+          const event = statusEventOf(entry);
+          if(event) {
+            events.push(event);
+            // A failed apply is worth showing in the resource's own log tab.
+            if(event.status === "fail" && event.message) {
+              lines.push({ time: entry.time, level: "error", kind: "event", process: entry.process, fqn: event.fqn, message: event.message });
+            }
+            continue;
+          }
           const message = messageOf(entry);
           if(message === undefined) continue;
           lines.push({
@@ -70,11 +90,34 @@ export async function readLogs(
           // A line being written right now can be partial; skip it.
         }
       }
-      cached = { size, lines };
+      cached = { size, lines, events };
       cache.set(path, cached);
     }
-    all.push(...cached.lines);
+    parsed.push(cached);
   }
+  return parsed;
+}
+
+/**
+ * The latest apply status each resource reported across recent runs. State
+ * keeps a resource at `creating` when its apply fails, so this is how a
+ * failure becomes visible.
+ */
+export async function readLatestStatuses(root: string): Promise<Map<string, ResourceStatusEvent>> {
+  const latest = new Map<string, ResourceStatusEvent>();
+  for(const { events } of await readFiles(root)) {
+    for(const { fqn, ...event } of events) {
+      const prev = latest.get(fqn);
+      if(!prev || event.time >= prev.time) latest.set(fqn, event);
+    }
+  }
+  return latest;
+}
+
+export async function readLogs(
+  root: string,
+  options: { fqn?: string, since?: number, limit?: number } = {}): Promise<LogLine[]> {
+  const all = (await readFiles(root)).flatMap(f => f.lines);
   let result = all;
   if(options.fqn) result = result.filter(l => l.fqn === options.fqn);
   if(options.since) result = result.filter(l => l.time > options.since!);
