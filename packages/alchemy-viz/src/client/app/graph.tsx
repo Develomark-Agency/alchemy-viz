@@ -4,7 +4,7 @@
  */
 import { keepPreviousData, queryOptions, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { Background, BackgroundVariant, Controls, type Edge, Handle, MarkerType, type Node, type NodeProps, Position, ReactFlow } from "@xyflow/react";
+import { Background, BackgroundVariant, Controls, type Edge, type FitViewOptions, Handle, MarkerType, type Node, type NodeProps, Position, ReactFlow } from "@xyflow/react";
 import ELK from "elkjs/lib/elk.bundled.js";
 import { useMemo, useState } from "react";
 import type { ResourceInfo } from "../../types.ts";
@@ -16,10 +16,15 @@ import { typeLabel } from "./type-label.ts";
 const NODE_W = 212;
 const NODE_H = 52;
 const elk = new ELK();
-// Shared by the first fit and the controls' fit button, so both frame the graph
-// the same way. Pixels: a percentage is resolved against a container size the
-// first fit doesn't have yet, and comes out as no padding at all.
-const FIT_VIEW = { padding: "24px", maxZoom: 1 } as const;
+/**
+ * Shared by the first fit and the controls' fit button, so both frame the graph
+ * the same way. Pixels: a percentage is resolved against a container size the
+ * first fit doesn't have yet, and comes out as no padding at all. `leftInset`
+ * keeps the graph clear of a panel floating over its left edge.
+ */
+function fitViewOptions(leftInset: number): FitViewOptions<ResourceNode> {
+  return { padding: { top: "24px", right: "24px", bottom: "24px", left: `${leftInset + 24}px` as const }, maxZoom: 1 };
+}
 
 type ResourceNode = Node<{ resource: ResourceInfo }, "resource">;
 
@@ -115,8 +120,10 @@ export function useGraphLayout(resources: ResourceInfo[]) {
   return useQuery({ ...options, enabled: resources.length > 0, placeholderData: keepPreviousData }).data;
 }
 
-export function Graph({ resources, layout }: { resources: ResourceInfo[], layout: GraphLayout }) {
+/** Fills its parent: size the parent, and the graph is fitted into whatever room it has. */
+export function Graph({ resources, layout, leftInset = 0 }: { resources: ResourceInfo[], layout: GraphLayout, leftInset?: number }) {
   const navigate = useNavigate();
+  const fitOptions = useMemo(() => fitViewOptions(leftInset), [leftInset]);
   // The layout last fitted to the view; the graph stays hidden until it matches.
   const [fitted, setFitted] = useState<string>();
   const edges = useMemo(() => graphEdges(resources), [resources]);
@@ -137,10 +144,8 @@ export function Graph({ resources, layout }: { resources: ResourceInfo[], layout
     [resources, positions]
   );
 
-  const height = Math.min(Math.max(layout.height + 64, 200), 460);
-
   return (
-    <div style={{ height }} className="[&_.react-flow__attribution]:bg-transparent [&_.react-flow__attribution_a]:text-fg-subtle [&_.react-flow__controls]:overflow-hidden [&_.react-flow__controls]:rounded-md [&_.react-flow__controls]:border [&_.react-flow__controls]:border-line [&_.react-flow__controls-button]:border-line [&_.react-flow__controls-button]:bg-surface [&_.react-flow__controls-button]:fill-fg-muted [&_.react-flow__controls-button:hover]:bg-hover">
+    <div className="h-full [&_.react-flow\_\_attribution]:bg-transparent [&_.react-flow\_\_attribution_a]:text-fg-subtle [&_.react-flow\_\_controls]:overflow-hidden [&_.react-flow\_\_controls]:rounded-md [&_.react-flow\_\_controls]:border [&_.react-flow\_\_controls]:border-line [&_.react-flow\_\_controls-button]:border-line [&_.react-flow\_\_controls-button]:bg-surface [&_.react-flow\_\_controls-button]:fill-fg-muted [&_.react-flow\_\_controls-button:hover]:bg-hover">
       <ReactFlow
         className={fitted === shape ? "animate-in fade-in duration-300 ease-out" : "opacity-0"}
         key={shape}
@@ -158,11 +163,12 @@ export function Graph({ resources, layout }: { resources: ResourceInfo[], layout
         // React Flow's own first fit (the `fitView` prop, or fitView() in
         // onInit) runs before it knows the container's size and drops the
         // padding, so fit one frame later and show the graph once framed.
-        onInit={i => requestAnimationFrame(() => void i.fitView(FIT_VIEW).then(() => setFitted(shape)))}
+        onInit={i => requestAnimationFrame(() => void i.fitView(fitOptions).then(() => setFitted(shape)))}
+        attributionPosition="bottom-center"
         aria-label="Resource dependency graph"
       >
-        <Background variant={BackgroundVariant.Lines} gap={27} size={1} color="var(--av-grid)" />
-        <Controls showInteractive={false} fitViewOptions={FIT_VIEW} position="bottom-right" />
+        <Background variant={BackgroundVariant.Dots} gap={24} size={2} color="var(--av-line)" />
+        <Controls showInteractive={false} orientation="horizontal" fitViewOptions={fitOptions} position="top-right" style={{ margin: 24 }} />
       </ReactFlow>
     </div>
   );
