@@ -4,6 +4,7 @@
  * plugin views.
  */
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { realpathSync } from "node:fs";
 import { createServer as createNetServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -33,6 +34,24 @@ const SHARED = [
   "@ui-sdk/react",
   "@ui-sdk/core"
 ];
+
+/**
+ * Packages whose files the shell's CSS loads by URL (font files). Package
+ * managers can install them outside the project and this package (Bun's
+ * `node_modules/.bun` store, pnpm's), where Vite won't serve from, so allow
+ * each one's real directory.
+ */
+const ASSET_PACKAGES = ["@fontsource-variable/ibm-plex-sans", "@fontsource/ibm-plex-mono"];
+
+function assetPackages() {
+  return ASSET_PACKAGES.flatMap(name => {
+    try {
+      return [dirname(realpathSync(Bun.resolveSync(`${name}/package.json`, packageRoot)))];
+    } catch {
+      return [];
+    }
+  });
+}
 
 /** Public, JSON-safe view of the plugin set, for the shell. */
 function pluginMeta(config: LoadedConfig, stack: StackInfo) {
@@ -238,7 +257,7 @@ export async function startServer(config: LoadedConfig) {
       middlewareMode: true,
       hmr: { server },
       fs: {
-        allow: [config.root, packageRoot, ...[...config.views, ...config.pages].map(entry => dirname(entry.view))]
+        allow: [config.root, packageRoot, ...assetPackages(), ...[...config.views, ...config.pages].map(entry => dirname(entry.view))]
       }
     },
     // VIZ_DEBUG=1 shows Vite's own output, such as dependencies it finds late.
