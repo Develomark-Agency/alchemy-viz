@@ -65,6 +65,40 @@ function ScopeButton({ active, onClick, label, count, dot }: { active: boolean, 
   );
 }
 
+type Direction = "up" | "down" | "left" | "right";
+const DIRECTIONS: Record<string, Direction> = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" };
+const LINK = "[data-slot=\"navigation-menu-link\"]";
+
+/** Gap between two spans on one axis; 0 when they overlap. */
+function gap(a0: number, a1: number, b0: number, b1: number) {
+  return Math.max(0, b0 - a1, a0 - b1);
+}
+
+/**
+ * The item a step from `from` lands on, by where things are on screen: the nearest one that way
+ * sharing its row or column. Sideways, a shorter column with nothing level still takes the step,
+ * at its nearest item; up or down, nothing in line means there is nowhere to go.
+ */
+function neighbor(from: HTMLElement, items: HTMLElement[], direction: Direction) {
+  const a = from.getBoundingClientRect();
+  const vertical = direction === "up" || direction === "down";
+  let best: { el: HTMLElement, aligned: boolean, score: number } | undefined;
+  for(const el of items) {
+    if(el === from) continue;
+    const b = el.getBoundingClientRect();
+    // How far it lies that way; things behind or level with `from` don't count.
+    const ahead = { down: b.top - a.bottom, up: a.top - b.bottom, right: b.left - a.right, left: a.left - b.right }[direction];
+    if(ahead < -2) continue;
+    const across = vertical ? gap(a.left, a.right, b.left, b.right) : gap(a.top, a.bottom, b.top, b.bottom);
+    const aligned = across === 0;
+    if(!aligned && vertical) continue;
+    const offset = vertical ? Math.abs(a.left - b.left) : Math.abs((a.top + a.bottom) - (b.top + b.bottom)) / 2;
+    const score = aligned ? Math.max(0, ahead) * 1000 + offset : Math.max(0, ahead) + across * 2;
+    if(!best || (aligned && !best.aligned) || (aligned === best.aligned && score < best.score)) best = { el, aligned, score };
+  }
+  return best?.el;
+}
+
 export function Megamenu({ stack, onNavigate }: { stack: StackInfo, onNavigate: () => void }) {
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState<ModeFilter>("all");
@@ -97,6 +131,38 @@ export function Megamenu({ stack, onNavigate }: { stack: StackInfo, onNavigate: 
     return group(shown);
   }, [stack.resources, query, scope]);
 
+  // The navigation menu walks its links as one list, so ↓ and → both mean "next". Arrows move
+  // around the grid as it's laid out instead: this listener sits inside the panel, so it runs
+  // before the menu's own and keeps the menu from also taking the key.
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = root.current;
+    if(!el) return;
+    function onKeyDown(event: KeyboardEvent) {
+      const direction = DIRECTIONS[event.key];
+      if(!direction || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || !el) return;
+      const items = [...el.querySelectorAll<HTMLElement>(`[data-megamenu-grid] ${LINK}`)];
+      const target = event.target as HTMLElement;
+      // From the filter, ↓ goes into the results; the other arrows stay with the text.
+      if(target instanceof HTMLInputElement) {
+        if(direction !== "down" || !items[0]) return;
+        event.preventDefault();
+        event.stopPropagation();
+        items[0].focus();
+        return;
+      }
+      const from = target.closest<HTMLElement>(LINK);
+      if(!from || !items.includes(from)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const next = neighbor(from, items, direction);
+      if(next) next.focus();
+      else if(direction === "up") el.querySelector<HTMLInputElement>("input")?.focus();
+    }
+    el.addEventListener("keydown", onKeyDown);
+    return () => el.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   const reduce = useReducedMotion();
   const presence = reduce
     ? { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: FADE }
@@ -105,7 +171,7 @@ export function Megamenu({ stack, onNavigate }: { stack: StackInfo, onNavigate: 
   return (
     // Filtering changes how much there is; the menu resizes to fit instead of jumping.
     <AutoHeight>
-      <div className="flex max-h-[min(72vh,640px)] flex-col">
+      <div ref={root} className="flex max-h-[min(72vh,640px)] flex-col">
         <div className="flex min-h-0 flex-1 flex-col md:flex-row">
           <aside className="flex shrink-0 flex-col gap-3 border-line p-4 md:w-60 md:border-r">
             <div>
@@ -121,7 +187,7 @@ export function Megamenu({ stack, onNavigate }: { stack: StackInfo, onNavigate: 
             </div>
           </aside>
 
-          <motion.div layoutScroll className={cn("relative flex min-h-0 flex-1 flex-col overscroll-contain lg:flex-row", moving ? "overflow-hidden" : "overflow-y-auto")}>
+          <motion.div layoutScroll data-megamenu-grid="" className={cn("relative flex min-h-0 flex-1 flex-col overscroll-contain lg:flex-row", moving ? "overflow-hidden" : "overflow-y-auto")}>
             <LayoutGroup>
               <AnimatePresence mode="popLayout" initial={false}>
                 {groups.length === 0 && <motion.div key="empty" {...presence} className="px-6 py-10 text-[13px] text-fg-muted">No resources match.</motion.div>}
@@ -187,7 +253,7 @@ export function Megamenu({ stack, onNavigate }: { stack: StackInfo, onNavigate: 
           </motion.div>
         </div>
         <footer className="flex items-center gap-4 border-t border-line bg-surface-2/60 px-5 py-2 text-xs text-fg-subtle">
-          <span className="hidden items-center gap-1.5 sm:flex"><Kbd>Tab</Kbd> move</span>
+          <span className="hidden items-center gap-1.5 sm:flex"><Kbd>←↑↓→</Kbd> move</span>
           <span className="hidden items-center gap-1.5 sm:flex"><Kbd>↵</Kbd> open</span>
           <span className="hidden items-center gap-1.5 sm:flex"><Kbd>esc</Kbd> close</span>
           <Link to="/" onClick={onNavigate} className="ml-auto flex items-center gap-1.5 font-medium text-fg-muted hover:text-fg">
