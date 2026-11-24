@@ -14,6 +14,10 @@ import { typeLabel } from "./type-label.ts";
 const NODE_W = 212;
 const NODE_H = 52;
 const elk = new ELK();
+// Shared by the first fit and the controls' fit button, so both frame the graph
+// the same way. Pixels: a percentage is resolved against a container size the
+// first fit doesn't have yet, and comes out as no padding at all.
+const FIT_VIEW = { padding: "24px", maxZoom: 1 } as const;
 
 type ResourceNode = Node<{ resource: ResourceInfo }, "resource">;
 
@@ -39,6 +43,8 @@ export function Graph({ resources }: { resources: ResourceInfo[] }) {
   const navigate = useNavigate();
   const [positions, setPositions] = useState<Map<string, { x: number, y: number }>>();
   const [size, setSize] = useState({ width: 0, height: 0 });
+  // The layout last fitted to the view; the graph stays hidden until it matches.
+  const [fitted, setFitted] = useState<string>();
 
   const edges = useMemo<Edge[]>(() => {
     const known = new Set(resources.map(r => r.fqn));
@@ -100,13 +106,11 @@ export function Graph({ resources }: { resources: ResourceInfo[] }) {
     <div style={{ height }} className="[&_.react-flow__attribution]:bg-transparent [&_.react-flow__attribution_a]:text-fg-subtle [&_.react-flow__controls]:overflow-hidden [&_.react-flow__controls]:rounded-md [&_.react-flow__controls]:border [&_.react-flow__controls]:border-line [&_.react-flow__controls-button]:border-line [&_.react-flow__controls-button]:bg-surface [&_.react-flow__controls-button]:fill-fg-muted [&_.react-flow__controls-button:hover]:bg-hover">
       {positions && (
         <ReactFlow
-          className="animate-in fade-in duration-300 ease-out"
+          className={fitted === shape ? "animate-in fade-in duration-300 ease-out" : "opacity-0"}
           key={shape}
           nodes={nodes}
           edges={edges}
           nodeTypes={nodeTypes}
-          fitView
-          fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
           minZoom={0.3}
           maxZoom={1.5}
           nodesConnectable={false}
@@ -115,10 +119,14 @@ export function Graph({ resources }: { resources: ResourceInfo[] }) {
           zoomOnScroll={false}
           preventScrolling={false}
           onNodeClick={(_, node) => navigate({ to: "/r/$fqn", params: { fqn: node.id } })}
+          // React Flow's own first fit (the `fitView` prop, or fitView() in
+          // onInit) runs before it knows the container's size and drops the
+          // padding, so fit one frame later and show the graph once framed.
+          onInit={i => requestAnimationFrame(() => void i.fitView(FIT_VIEW).then(() => setFitted(shape)))}
           aria-label="Resource dependency graph"
         >
           <Background variant={BackgroundVariant.Lines} gap={27} size={1} color="var(--av-grid)" />
-          <Controls showInteractive={false} position="bottom-right" />
+          <Controls showInteractive={false} fitViewOptions={FIT_VIEW} position="bottom-right" />
         </ReactFlow>
       )}
     </div>
