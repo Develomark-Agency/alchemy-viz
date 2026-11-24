@@ -101,11 +101,13 @@ function TipBody({ provider }: { provider: ProviderInfo }) {
 
   const label = (
     <>
-      <ProviderMark provider={provider} size={12} />
+      <ProviderMark provider={provider} size={12} className="shrink-0" />
       {provider.label}
     </>
   );
-  const row = "flex items-center gap-1.5 whitespace-nowrap";
+  // w-max: while the box eases narrower, the label keeps its own width (and
+  // its mark its size) and is clipped, instead of being squeezed to fit.
+  const row = "flex w-max items-center gap-1.5 whitespace-nowrap";
   return (
     <motion.div className="relative" initial={false} animate={{ width }} transition={{ duration: reduce ? 0 : 0.24, ease: easeOut }}>
       {/* Measures the new label at its natural width; the visible ones may be mid-fade. */}
