@@ -62,20 +62,19 @@ function ResourceRow({ r, onHighlight }: { r: ResourceInfo, onHighlight: (fqn: s
       <ResourceIcon type={r.type} size={32} badge={false} />
       <span className="flex min-w-0 flex-1 flex-col gap-[2px]">
         {/* Line heights are in px and roomy: a tight box under `truncate` clips descenders (the g in Onboarding). */}
-        <span className="flex min-w-0 items-center gap-[8px]">
-          <span className="truncate text-[13px] leading-[18px] font-medium">{r.fqn}</span>
-          {status && (
-            <span
-              className={cn("size-[6px] shrink-0 rounded-full", status)}
-              title={failed ? r.failedBy ? `Blocked by ${r.failedBy}` : r.error ?? "Failed" : "Running locally"}
-            />
-          )}
-        </span>
+        <span className="truncate text-[13px] leading-[18px] font-medium">{r.fqn}</span>
         <span className="flex min-w-0 items-center gap-[6px] text-[11.5px] leading-[16px] text-fg-subtle">
           {provider && <ProviderMark provider={provider} size={12} className="shrink-0" />}
           <span className="truncate">{kind}</span>
         </span>
       </span>
+      {/* A lane of its own at the right edge, level with the name, so the dots line up down the list. */}
+      {status && (
+        <span
+          className={cn("mt-[10px] mr-[4px] size-[6px] shrink-0 self-start rounded-full", status)}
+          title={failed ? r.failedBy ? `Blocked by ${r.failedBy}` : r.error ?? "Failed" : "Running locally"}
+        />
+      )}
     </ProviderTip>
   );
 }
