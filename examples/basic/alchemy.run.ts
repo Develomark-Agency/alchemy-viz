@@ -30,6 +30,7 @@ const Api = Effect.gen(function* () {
       UPLOADS: uploads,
       JOBS: jobs,
       API_KEY: apiKey,
+      EMAIL: Cloudflare.Email.SendEmail("Email"),
       COUNTER: Cloudflare.DurableObject<Counter>("Counter"),
       ONBOARDING: Cloudflare.Workflow<{ email: string }>("Onboarding", { className: "Onboarding" }),
       ...(withContainers ? { SANDBOX: Cloudflare.DurableObject("Sandbox", { containers: [Shell] }) } : {}),

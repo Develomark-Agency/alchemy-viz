@@ -105,7 +105,14 @@ export class Onboarding extends WorkflowEntrypoint<ApiEnv, { email: string }> {
   async run(event: WorkflowEvent<{ email: string }>, step: WorkflowStep) {
     const user = await step.do("create profile", async () => ({ email: event.payload.email, createdAt: new Date().toISOString() }));
     await step.do("send welcome email", async () => {
-      console.log("welcome email to", user.email);
+      // In alchemy dev this is stored under .alchemy/local/email instead of delivered.
+      await this.env.EMAIL.send({
+        from: "welcome@example.com",
+        to: user.email,
+        subject: "Welcome aboard",
+        text: `Hi ${user.email},\n\nThanks for signing up.`,
+        html: `<h1>Welcome aboard</h1><p>Hi ${user.email}, thanks for signing up.</p>`
+      });
       return { sent: true };
     });
     await step.sleep("wait before nudge", "20 seconds");
