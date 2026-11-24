@@ -13,6 +13,7 @@
       "name": "example-basic",
       "dependencies": {
         "@alchemy.run/cloudflare": "2.0.0-beta.87",
+        "@alchemy.run/sql": "2.0.0-beta.87",
         "@alchemy.run/turso": "2.0.0-beta.87",
         "@cloudflare/workers-types": "^4.20251120.0",
         "@effect/platform-bun": "^4.1.4",
