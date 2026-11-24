@@ -2,7 +2,7 @@ import { NavigationMenuLink } from "@ui-sdk/react/navigation-menu";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
 import { AnimatePresence, LayoutGroup, motion, type Transition, useReducedMotion } from "motion/react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ResourceInfo, StackInfo } from "../../types.ts";
 import { AutoHeight, cn, easeOut, Kbd, SearchInput } from "../../ui/index.ts";
 import { ProviderTip } from "./providers.tsx";
@@ -16,6 +16,8 @@ const MOVE: Transition = { type: "spring", duration: 0.38, bounce: 0 };
 const fadeIn = { opacity: 1, filter: "blur(0px)", scale: 1 };
 const fadeOut = { opacity: 0, filter: "blur(4px)", scale: 0.98 };
 const FADE: Transition = { duration: 0.2, ease: easeOut };
+/** Long enough for the slowest of the above (the spring) to land. */
+const SETTLE_MS = 500;
 
 function plural(name: string) {
   if(name.endsWith("y")) return `${name.slice(0, -1)}ies`;
@@ -67,6 +69,19 @@ export function Megamenu({ stack, onNavigate }: { stack: StackInfo, onNavigate: 
   const [scope, setScope] = useState<Scope>("all");
   const pathname = useRouterState({ select: s => s.location.pathname });
 
+  // While the list rearranges, rows on their way out are still in it and the menu is still easing to its new
+  // height, so the list would overflow and flash a scrollbar. It doesn't scroll until things have settled.
+  // This is set in the same update that changes the rows, so there is no frame in between.
+  const [moving, setMoving] = useState(false);
+  const settle = useRef<number>(undefined);
+  useEffect(() => () => window.clearTimeout(settle.current), []);
+  function change(update: () => void) {
+    update();
+    setMoving(true);
+    window.clearTimeout(settle.current);
+    settle.current = window.setTimeout(() => setMoving(false), SETTLE_MS);
+  }
+
   const counts = {
     all: stack.resources.length,
     local: stack.resources.filter(r => r.mode === "local").length,
@@ -95,15 +110,15 @@ export function Megamenu({ stack, onNavigate }: { stack: StackInfo, onNavigate: 
               <div className="text-[13px] font-semibold">Resources</div>
               <div className="text-xs text-fg-subtle">{stack.resources.length} in {stack.name} · {stack.stage}</div>
             </div>
-            <SearchInput aria-label="Filter resources" placeholder="Filter resources" value={query} onValueChange={setQuery} />
+            <SearchInput aria-label="Filter resources" placeholder="Filter resources" value={query} onValueChange={value => change(() => setQuery(value))} />
             <div className="flex flex-col gap-0.5 max-md:hidden">
-              <ScopeButton active={scope === "all"} onClick={() => setScope("all")} label="All" count={counts.all} />
-              <ScopeButton active={scope === "local"} onClick={() => setScope("local")} label="Running locally" count={counts.local} dot />
-              <ScopeButton active={scope === "cloud"} onClick={() => setScope("cloud")} label="Cloud only" count={counts.cloud} />
+              <ScopeButton active={scope === "all"} onClick={() => change(() => setScope("all"))} label="All" count={counts.all} />
+              <ScopeButton active={scope === "local"} onClick={() => change(() => setScope("local"))} label="Running locally" count={counts.local} dot />
+              <ScopeButton active={scope === "cloud"} onClick={() => change(() => setScope("cloud"))} label="Cloud only" count={counts.cloud} />
             </div>
           </aside>
 
-          <motion.div layoutScroll className="relative flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain lg:flex-row">
+          <motion.div layoutScroll className={cn("relative flex min-h-0 flex-1 flex-col overscroll-contain lg:flex-row", moving ? "overflow-hidden" : "overflow-y-auto")}>
             <LayoutGroup>
               <AnimatePresence mode="popLayout" initial={false}>
                 {groups.length === 0 && <motion.div key="empty" {...presence} className="px-6 py-10 text-[13px] text-fg-muted">No resources match.</motion.div>}
