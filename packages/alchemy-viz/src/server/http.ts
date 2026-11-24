@@ -194,7 +194,7 @@ export async function startServer(config: LoadedConfig) {
     if(path === "/run" && req.method === "POST") {
       const body = JSON.parse((await readBody(req)) || "{}");
       if(body.action === "start") await runner.start(body);
-      else if(body.action === "stop") runner.stop();
+      else if(body.action === "stop") await runner.stop(body.pid);
       else throw new RunInputError(`Unknown action '${String(body.action)}'.`);
       return sendJson(res, 200, await runner.status());
     }

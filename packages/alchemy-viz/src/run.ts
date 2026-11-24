@@ -15,8 +15,10 @@ export interface RunInfo {
   pid: number,
   /** Epoch ms. */
   startedAt: number,
-  /** True when the dashboard started it (and can stop it); false for one running in a terminal. */
-  owned: boolean
+  /** True when the dashboard started it; false for one running in a terminal. */
+  owned: boolean,
+  /** Its working directory, when known. */
+  cwd?: string
 }
 
 export interface RunResult {

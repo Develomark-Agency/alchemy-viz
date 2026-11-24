@@ -1,8 +1,8 @@
 import { Menu, MenuContent, MenuGroup, MenuGroupLabel, MenuItem, MenuSeparator, MenuTrigger } from "@ui-sdk/react/menu";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Play, Rocket, ScrollText, Square, Terminal, Trash2 } from "lucide-react";
+import { Activity, Play, Rocket, ScrollText, Square, Terminal, Trash2 } from "lucide-react";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { Button, cn, Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogTitle, Input, toast } from "../../ui/index.ts";
+import { Button, cn, Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogTitle, formatRelative, Input, toast } from "../../ui/index.ts";
 import type { RunCommand, RunInfo, RunResult, RunStatus } from "../../run.ts";
 import { useRefresh, useStack } from "./use-stack.ts";
 
@@ -33,8 +33,8 @@ interface RunControls {
   isNewStage: boolean,
   /** Runs on this stage (the dashboard's own, or a terminal's). */
   here: RunInfo[],
-  /** Runs on other stages. */
-  elsewhere: RunInfo[],
+  /** Every run in progress for this project, on any stage. */
+  all: RunInfo[],
   /** The dashboard's own run, on any stage. */
   owned: RunInfo | undefined,
   last: RunResult | undefined,
@@ -42,8 +42,10 @@ interface RunControls {
   blocked: (command: RunCommand) => string | undefined,
   /** Starts a command, asking first when it changes the cloud. */
   request: (command: RunCommand) => void,
-  stop: () => Promise<void>,
-  showOutput: () => void
+  /** Stops the dashboard's own run, or the run with this pid. */
+  stop: (pid?: number) => Promise<void>,
+  showOutput: () => void,
+  showProcesses: () => void
 }
 
 const Controls = createContext<RunControls | undefined>(undefined);
@@ -71,11 +73,7 @@ export function RunProvider({ children }: { children: ReactNode }) {
   });
 
   const here = useMemo(() => status?.runs.filter(r => r.stage === stage) ?? [], [status, stage]);
-  const elsewhere = useMemo(() => {
-    const seen = new Set<string>();
-    // Several terminal runs of one command on one stage read as one line.
-    return (status?.runs ?? []).filter(r => r.stage !== stage && !seen.has(`${r.command}:${r.stage}:${r.owned}`) && seen.add(`${r.command}:${r.stage}:${r.owned}`));
-  }, [status, stage]);
+  const all = useMemo(() => status?.runs ?? [], [status]);
   const owned = status?.runs.find(r => r.owned);
   const last = status?.last;
 
@@ -101,6 +99,7 @@ export function RunProvider({ children }: { children: ReactNode }) {
 
   const [confirming, setConfirming] = useState<RunCommand | null>(null);
   const [outputOpen, setOutputOpen] = useState(false);
+  const [processesOpen, setProcessesOpen] = useState(false);
 
   const blocked = useCallback((command: RunCommand): string | undefined => {
     if(!stage) return "Reading the stack…";
@@ -124,7 +123,7 @@ export function RunProvider({ children }: { children: ReactNode }) {
     stage,
     isNewStage,
     here,
-    elsewhere,
+    all,
     owned,
     last,
     blocked,
@@ -134,15 +133,16 @@ export function RunProvider({ children }: { children: ReactNode }) {
       if(command === "dev") start("dev").catch(() => {});
       else setConfirming(command);
     },
-    stop: async () => {
+    stop: async pid => {
       try {
-        client.setQueryData(["run"], await postRun({ action: "stop" }));
+        client.setQueryData(["run"], await postRun({ action: "stop", pid }));
       } catch (error) {
         toast("Couldn't stop", { description: error instanceof Error ? error.message : String(error) });
       }
     },
-    showOutput: () => setOutputOpen(true)
-  }), [stage, isNewStage, here, elsewhere, owned, last, blocked, start, client]);
+    showOutput: () => setOutputOpen(true),
+    showProcesses: () => setProcessesOpen(true)
+  }), [stage, isNewStage, here, all, owned, last, blocked, start, client]);
 
   return (
     <Controls.Provider value={controls}>
@@ -157,6 +157,7 @@ export function RunProvider({ children }: { children: ReactNode }) {
           setConfirming(null);
         }}
       />
+      <ProcessesDialog open={processesOpen} onOpenChange={setProcessesOpen} runs={all} stop={controls.stop} />
       <OutputDialog open={outputOpen} onOpenChange={setOutputOpen} status={status} />
     </Controls.Provider>
   );
@@ -245,6 +246,55 @@ function OutputDialog({ open, onOpenChange, status }: { open: boolean, onOpenCha
   );
 }
 
+function ProcessesDialog({ open, onOpenChange, runs, stop }: { open: boolean, onOpenChange: (open: boolean) => void, runs: RunInfo[], stop: (pid: number) => Promise<void> }) {
+  // A stopped process takes a moment to exit; its row says so until it's gone from the list.
+  const [stopping, setStopping] = useState<Set<number>>(new Set());
+  useEffect(() => {
+    setStopping(prev => {
+      const live = new Set(runs.map(r => r.pid));
+      const next = new Set([...prev].filter(pid => live.has(pid)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [runs]);
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[min(640px,calc(100vw-32px))]">
+        <DialogTitle>Running processes</DialogTitle>
+        <DialogDescription>Alchemy runs for this project, whether the dashboard started them or a terminal did.</DialogDescription>
+        <DialogBody className="gap-2">
+          {runs.length === 0
+            ? <p className="py-6 text-center text-[13px] text-fg-muted">Nothing is running.</p>
+            : runs.map(r => (
+              <div key={r.pid} className="flex items-center gap-3 rounded-lg border border-line px-3 py-2.5">
+                <span className="size-2 shrink-0 rounded-full bg-ok" />
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <div className="flex items-baseline gap-2 text-[13px]">
+                    <span className="font-medium">alchemy {r.command}</span>
+                    <span className="truncate font-mono text-xs text-fg-muted">{r.stage}</span>
+                  </div>
+                  <div className="text-xs text-fg-subtle">
+                    pid {r.pid} · started {formatRelative(r.startedAt)} · {r.owned ? "from the dashboard" : "from a terminal"}
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="danger"
+                  disabled={stopping.has(r.pid)}
+                  onClick={async () => {
+                    setStopping(prev => new Set(prev).add(r.pid));
+                    await stop(r.pid);
+                  }}
+                >
+                  {stopping.has(r.pid) ? "Stopping…" : "Stop"}
+                </Button>
+              </div>
+            ))}
+        </DialogBody>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 const popup = "z-50 min-w-64 rounded-lg border border-line bg-surface p-1 text-[13px] shadow-popup outline-none origin-(--transform-origin) transition-[opacity,scale] duration-150 ease-out data-starting-style:scale-97 data-starting-style:opacity-0 data-ending-style:opacity-0";
 const menuItem = "flex h-8 cursor-default items-center gap-2 rounded-sm px-2 outline-none select-none data-disabled:opacity-50 data-highlighted:bg-hover [&_svg]:size-3.5 [&_svg]:text-fg-subtle";
 const groupLabel = "px-2 pt-1.5 pb-1 text-[11px] font-medium text-fg-subtle";
@@ -283,9 +333,10 @@ export function RunMenu() {
           </MenuGroupLabel>
           {devHere && !ownedHere
             ? (
-              <MenuItem disabled className={menuItem}>
+              <MenuItem onClick={run.showProcesses} className={menuItem}>
                 <Terminal />
                 <span className="flex-1">Dev is running in a terminal</span>
+                <span className="text-[11px] text-fg-subtle">manage</span>
               </MenuItem>
             )
             : devHere
@@ -317,13 +368,14 @@ export function RunMenu() {
             Destroy…
           </MenuItem>
         </MenuGroup>
-        {(run.owned || run.last || run.elsewhere.length > 0) && <MenuSeparator className="my-1 h-px bg-line" />}
-        {run.elsewhere.map(r => (
-          <div key={r.pid} className="flex items-center gap-2 px-2 py-1 text-xs text-fg-subtle">
-            <span className="size-1.5 rounded-full bg-ok" />
-            <span className="flex-1 truncate">{r.command} running on <span className="font-mono">{r.stage}</span>{r.owned ? "" : " in a terminal"}</span>
-          </div>
-        ))}
+        {(run.owned || run.last || run.all.length > 0) && <MenuSeparator className="my-1 h-px bg-line" />}
+        {run.all.length > 0 && (
+          <MenuItem onClick={run.showProcesses} className={menuItem}>
+            <Activity />
+            <span className="flex-1">Running processes</span>
+            <span className="text-[11px] text-fg-subtle">{run.all.length}</span>
+          </MenuItem>
+        )}
         {(run.owned || run.last) && (
           <MenuItem onClick={run.showOutput} className={menuItem}>
             <ScrollText />

@@ -9,7 +9,7 @@
  * state lock.
  */
 import { type ChildProcess, execFile, spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -28,6 +28,31 @@ export class RunInputError extends Error {}
 /** The request is fine but something else is running (409). */
 export class RunConflict extends Error {}
 
+function safeRealpath(path: string) {
+  try {
+    return realpathSync(path);
+  } catch {
+    return path;
+  }
+}
+
+/** The signal Ctrl-C sends, so `dev` can shut its simulators down; then a hard kill if it hangs. */
+function signalThenKill(pid: number) {
+  try {
+    process.kill(pid, "SIGINT");
+  } catch {
+    return;
+  }
+  setTimeout(() => {
+    try {
+      process.kill(pid, 0);
+      process.kill(pid, "SIGKILL");
+    } catch {
+      // Already gone.
+    }
+  }, KILL_AFTER_MS).unref();
+}
+
 interface ActiveRun {
   info: RunInfo,
   child: ChildProcess,
@@ -40,7 +65,8 @@ interface ActiveRun {
 export interface Runner {
   status(): Promise<RunStatus>,
   start(request: { command: unknown, stage: unknown, confirm?: unknown }): Promise<void>,
-  stop(): void,
+  /** Stops the dashboard's own run, or, given a pid, any run listed in `status()`. */
+  stop(pid?: unknown): Promise<void>,
   /** Stops the dashboard's own run, if any, and waits for it to end. */
   close(): Promise<void>
 }
@@ -75,7 +101,8 @@ export function makeRunner(options: {
     if(run.tail.length > TAIL_LINES) run.tail.splice(0, run.tail.length - TAIL_LINES);
   }
 
-  const externalCache = new Map<number, { command: RunCommand, stage: string } | null>();
+  const externalCache = new Map<number, { command: RunCommand, stage: string, cwd?: string } | null>();
+  const rootReal = safeRealpath(root);
 
   async function externals(): Promise<RunInfo[]> {
     const dir = join(root, ".alchemy", "log");
@@ -98,13 +125,15 @@ export function makeRunner(options: {
       if(!externalCache.has(pid)) externalCache.set(pid, await describe(pid));
       const run = externalCache.get(pid);
       if(!run) continue;
+      // The log folder says the run is this project's; the working directory confirms it.
+      if(run.cwd && safeRealpath(run.cwd) !== rootReal) continue;
       found.push({ ...run, pid, startedAt: Date.parse(`${match[1]}T${match[2]}:${match[3]}:${match[4]}Z`) || 0, owned: false });
     }
     return found;
   }
 
   /** The Alchemy command a pid is running, from its command line. */
-  async function describe(pid: number): Promise<{ command: RunCommand, stage: string } | null> {
+  async function describe(pid: number): Promise<{ command: RunCommand, stage: string, cwd?: string } | null> {
     let line: string;
     try {
       line = (await exec("ps", ["-o", "command=", "-p", String(pid)])).stdout.trim();
@@ -118,7 +147,16 @@ export function makeRunner(options: {
     if(!command) return null;
     const flag = words.findIndex(w => w === "--stage" || w.startsWith("--stage="));
     const stage = flag < 0 ? defaultStage : words[flag]!.includes("=") ? words[flag]!.split("=")[1]! : words[flag + 1] ?? defaultStage;
-    return { command, stage };
+    return { command, stage, cwd: await cwdOf(pid) };
+  }
+
+  async function cwdOf(pid: number): Promise<string | undefined> {
+    try {
+      const out = (await exec("lsof", ["-a", "-p", String(pid), "-d", "cwd", "-Fn"])).stdout;
+      return out.split("\n").find(l => l.startsWith("n"))?.slice(1);
+    } catch {
+      return undefined;
+    }
   }
 
   return {
@@ -173,7 +211,14 @@ export function makeRunner(options: {
       child.once("close", code => finish(code));
     },
 
-    stop() {
+    async stop(pid) {
+      if(pid !== undefined && pid !== current?.info.pid) {
+        // Only a run this project's status lists: never an arbitrary pid.
+        const target = (await externals()).find(r => r.pid === pid);
+        if(!target) throw new RunInputError(`No Alchemy run with pid ${String(pid)} in this project.`);
+        signalThenKill(target.pid);
+        return;
+      }
       const run = current;
       if(!run || run.stopped) return;
       run.stopped = true;
@@ -185,7 +230,7 @@ export function makeRunner(options: {
     async close() {
       const run = current;
       if(!run) return;
-      this.stop();
+      await this.stop();
       await run.done;
     }
   };

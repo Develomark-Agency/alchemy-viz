@@ -32,6 +32,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean, onOpenCh
     onOpenChange(false);
     if(value === "page:overview") navigate({ to: "/" });
     else if(value === "page:logs") navigate({ to: "/logs" });
+    else if(value === "run:processes") run.showProcesses();
     else if(value === "run:stop") run.stop();
     else if(value.startsWith("run:")) run.request(value.slice(4) as "dev" | "deploy" | "destroy");
     else if(value.startsWith("custom:")) navigate({ to: "/pages/$", params: { _splat: value.slice(7) } });
@@ -66,6 +67,16 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean, onOpenCh
                 </CommandItem>
               ))}
             </CommandGroup>
+            {run.all.length > 0 && (
+              <CommandGroup>
+                <CommandGroupLabel className={groupLabel}>Running</CommandGroupLabel>
+                <CommandItem value="run:processes" label="Running processes" keywords={["run", "dev", "stop", "kill", "terminal"]} className={item}>
+                  <Activity />
+                  Running processes
+                  <span className="ml-auto text-xs text-fg-subtle">{run.all.length}</span>
+                </CommandItem>
+              </CommandGroup>
+            )}
             {run.stage && (run.owned?.stage === run.stage || !run.blocked("dev") || !run.blocked("deploy") || !run.blocked("destroy")) && (
               <CommandGroup>
                 <CommandGroupLabel className={groupLabel}>Run on {run.stage}</CommandGroupLabel>
