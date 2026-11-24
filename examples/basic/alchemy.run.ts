@@ -6,7 +6,6 @@ import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import type { Counter } from "./src/worker.ts";
 import { FeatureFlags, FeatureFlagsProvider } from "./src/feature-flags.ts";
-import * as TursoLocal from "./turso-local/index.ts"; // turso-local experiment
 
 // Opt in with EXAMPLE_CONTAINERS=1: local containers run in Docker.
 const withContainers = !!process.env.EXAMPLE_CONTAINERS;
@@ -82,25 +81,12 @@ const TursoNotes = Effect.gen(function* () {
   // Already the org's value, so this manages the setting without changing it.
   yield* Turso.OrganizationSettings("Org", { overages: false });
   return db;
-}).pipe(Alchemy.remote()); // Stays in the cloud when the turso-local experiment makes Databases local.
-
-// turso-local experiment: opt in with EXAMPLE_TURSO_LOCAL=1. A local libSQL
-// server under `alchemy dev`, from the official resource types.
-const withTursoLocal = !!process.env.EXAMPLE_TURSO_LOCAL;
-const TursoLocalNotes = Effect.gen(function* () {
-  const db = yield* Turso.Database("LocalNotes", {
-    group: "default", // Ignored locally; a deploy would create the database in this group.
-    migrations: "./turso/migrations",
-    importFiles: ["./turso/seed.sql"]
-  });
-  yield* Turso.DatabaseToken("LocalNotesReader", { database: db.name, authorization: "read-only" });
-  return db;
 });
 
 export default Alchemy.Stack(
   "VizExample",
   {
-    providers: Layer.mergeAll(Cloudflare.providers(), withTursoLocal ? TursoLocal.providers() : Turso.providers(), FeatureFlagsProvider()),
+    providers: Layer.mergeAll(Cloudflare.providers(), Turso.providers(), FeatureFlagsProvider()),
     state: Alchemy.localState()
   },
   Effect.gen(function* () {
@@ -109,12 +95,6 @@ export default Alchemy.Stack(
       flags: { newCheckout: false, darkMode: true, betaSearch: false }
     });
     const notes = process.env.EXAMPLE_TURSO ? yield* TursoNotes : undefined;
-    const localNotes = withTursoLocal ? yield* TursoLocalNotes : undefined;
-    return {
-      url: api.url,
-      flagsFile: flags.file,
-      ...(notes ? { tursoUrl: notes.url } : {}),
-      ...(localNotes ? { localTursoUrl: localNotes.url } : {})
-    };
+    return { url: api.url, flagsFile: flags.file, ...(notes ? { tursoUrl: notes.url } : {}) };
   })
 );
