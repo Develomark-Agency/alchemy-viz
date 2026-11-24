@@ -84,23 +84,41 @@ function ResourceRow({ r, onHighlight }: { r: ResourceInfo, onHighlight: (fqn: s
  */
 function ResourceList({ resources, empty, onHighlight }: { resources: ResourceInfo[], empty: string, onHighlight: (fqn: string | undefined) => void }) {
   const reduce = useReducedMotion();
+  const scroller = useRef<HTMLElement>(null);
   const content = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState<number>();
+  // Which edges have more list past them: those fade, hinting that it scrolls that way.
+  const [fade, setFade] = useState({ top: false, bottom: false });
+  function updateFade() {
+    const el = scroller.current;
+    if(!el) return;
+    const top = el.scrollTop > 1;
+    const bottom = el.scrollHeight - el.clientHeight - el.scrollTop > 1;
+    setFade(previous => previous.top === top && previous.bottom === bottom ? previous : { top, bottom });
+  }
   useLayoutEffect(() => {
     const el = content.current;
-    if(!el) return;
-    const observer = new ResizeObserver(() => setHeight(el.offsetHeight));
+    const box = scroller.current;
+    if(!el || !box) return;
+    const observer = new ResizeObserver(() => {
+      setHeight(el.offsetHeight);
+      updateFade();
+    });
     observer.observe(el);
+    observer.observe(box);
     setHeight(el.offsetHeight);
+    updateFade();
     return () => observer.disconnect();
   }, []);
 
   const duration = reduce ? 0 : 0.2;
   return (
     <nav
+      ref={scroller}
       aria-label="Resources"
-      style={{ height }}
-      className="min-h-0 overflow-y-auto overscroll-contain transition-[height] duration-200 ease-(--ease-out) [scrollbar-width:none] motion-reduce:transition-none [&::-webkit-scrollbar]:hidden"
+      onScroll={updateFade}
+      style={{ height, "--fade-top": fade.top ? "20px" : "0px", "--fade-bottom": fade.bottom ? "20px" : "0px" } as CSSProperties}
+      className="min-h-0 [mask-image:linear-gradient(to_bottom,transparent,#000_var(--fade-top),#000_calc(100%-var(--fade-bottom)),transparent)] overflow-y-auto overscroll-contain transition-[height,--fade-top,--fade-bottom] duration-200 ease-(--ease-out) [scrollbar-width:none] motion-reduce:transition-none [&::-webkit-scrollbar]:hidden"
     >
       {/* popLayout takes a leaving row out of the flow at once, so the rest move up while it fades. */}
       <div ref={content} className="relative flex flex-col p-[6px]">

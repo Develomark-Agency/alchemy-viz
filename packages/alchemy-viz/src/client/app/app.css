@@ -12,4 +12,17 @@
 @source "../../ui";
 @source "../../plugins";
 
+/* Registered so a scrolling list's edge fades can ease in and out (see the overview's resource list). */
+@property --fade-top {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --fade-bottom {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
 /* Plugin view directories are appended below at build time. */
