@@ -1,0 +1,128 @@
+# Started by `bun release <major|minor|patch>` (scripts/release.ts), or by
+# hand from the Actions tab.
+#
+# prepare: bumps the version, checks, builds and smoke-tests it, then
+#          commits and tags the release on main. Nothing is pushed unless
+#          every check passes.
+# publish: publishes the tagged commit to npm (trusted publishing, no token)
+#          and creates the GitHub Release with the tarball attached. It
+#          checks out the tag, so if it fails, "Re-run failed jobs" retries
+#          just this part; steps already done are skipped.
+#
+# npm's trusted publisher for alchemy-viz must name this file (release.yml).
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Which part of the version to increment
+        type: choice
+        options: [patch, minor, major]
+        required: true
+      expect:
+        description: The current version, as the caller saw it (optional guard against a concurrent release)
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Bump, check, tag
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - run: bun install --frozen-lockfile
+
+      - name: Bump the version
+        id: bump
+        run: |
+          version=$(bun scripts/version.ts "${{ inputs.bump }}" --expect "${{ inputs.expect }}")
+          if git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null; then
+            echo "::error::The tag v$version already exists."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Releasing $version" >> "$GITHUB_STEP_SUMMARY"
+
+      - run: bun run check
+      - run: bun run smoke
+
+      - name: Commit and tag
+        run: |
+          version="${{ steps.bump.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898804+github-actions[bot]@users.noreply.github.com"
+          git commit --all --message "Release v$version"
+          git tag --annotate "v$version" --message "v$version"
+
+      - name: Push
+        if: ${{ !env.ACT }}
+        run: git push --atomic origin HEAD:main "v${{ steps.bump.outputs.version }}"
+
+  publish:
+    name: Publish to npm, create the GitHub Release
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: v${{ needs.prepare.outputs.version }}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      # Trusted publishing needs npm 11.5.1 or newer.
+      - run: npm install --global npm@latest
+      - run: bun install --frozen-lockfile
+
+      - name: Pack
+        working-directory: packages/alchemy-viz
+        run: npm pack
+
+      - name: Publish to npm
+        if: ${{ !env.ACT }}
+        working-directory: packages/alchemy-viz
+        run: |
+          if npm view "alchemy-viz@$VERSION" version >/dev/null 2>&1; then
+            echo "alchemy-viz@$VERSION is already on npm."
+          else
+            npm publish
+          fi
+
+      - name: Create the GitHub Release
+        if: ${{ !env.ACT }}
+        run: |
+          tarball="packages/alchemy-viz/alchemy-viz-$VERSION.tgz"
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            gh release upload "v$VERSION" "$tarball" --clobber
+          else
+            gh release create "v$VERSION" "$tarball" --verify-tag --generate-notes --title "v$VERSION"
+          fi

@@ -2,9 +2,23 @@
 
 A local dashboard for [Alchemy v2](https://alchemy.run) stacks. It lets you browse and edit the resources `alchemy dev` is running: KV keys, D1 tables, R2 objects, Durable Object storage, queue messages, Workflow instances, Secrets Store values, containers, sent email, and Workers (requests, cron triggers, logs). Turso databases, groups and tokens get views too, against Turso Cloud. You can also add pages for your own resource types.
 
+## Install
+
+In an Alchemy v2 project:
+
+```bash
+npm install --save-dev alchemy-viz   # or: bun add --dev alchemy-viz
+npx alchemy-viz                      # or: bunx --bun alchemy-viz
 ```
-packages/alchemy-viz   the library: CLI, server, dashboard, UI kit, built-in Cloudflare plugin
+
+It runs on Node 22.22.3, 24.11.1 or newer, or Bun. Releases are listed on [GitHub](https://github.com/Develomark-Agency/alchemy-viz/releases) and published to [npm](https://www.npmjs.com/package/alchemy-viz).
+
+## This repository
+
+```
+packages/alchemy-viz   the library: CLI, server, dashboard, UI kit, built-in Cloudflare and Turso plugins
 examples/basic         a test Alchemy project (Worker + KV + D1 + R2 + Queue + Durable Object + Workflow + Secrets Store + email + a custom resource, and opt-in Turso)
+scripts/               release and smoke-test scripts
 ```
 
 ## Try it
@@ -95,7 +109,7 @@ export default defineConfig({
 
 ## Writing a view
 
-A view is two files. The server half runs in the alchemy-viz process, with Node APIs and your project's dependencies. Wrap a handler in `handler(schema, fn)` to validate its input with any Standard Schema library (Zod, Effect Schema, Valibot, ArkType…). The browser then gets the schema's input type, and invalid input comes back as a readable error.
+A view is two files. The server half runs in the alchemy-viz process, with Node APIs and your project's dependencies. Stick to Node APIs (not `Bun.*`) if the dashboard may run on Node. Wrap a handler in `handler(schema, fn)` to validate its input with any Standard Schema library (Zod, Effect Schema, Valibot, ArkType…). The browser then gets the schema's input type, and invalid input comes back as a readable error.
 
 ```ts
 // server.ts
@@ -201,3 +215,25 @@ Local queues keep no backlog (messages go straight to the consumer), so there's 
 | Organization settings / member / invite | The organization's settings (marking the ones the stack manages, and any drift), plan usage against its quotas, members and pending invites |
 
 The example declares a group, a database with migrations and a seed file, a database token, a group token, a group-scoped API token and organization settings. They're real Turso resources, so they're opt-in: `EXAMPLE_TURSO=1 TURSO_API_TOKEN=… bun run dev`. Like the other opt-in resources, a later run without `EXAMPLE_TURSO=1` deletes them. Members and invites need a team organization on a paid plan, so the example leaves them out.
+
+## Developing
+
+`bun run viz` in `examples/basic` runs the CLI straight from `packages/alchemy-viz/src` (through the `alchemy-viz-source` export condition), so changes need no build. The published package is `dist/`, built by [tsdown](https://tsdown.dev):
+
+| Command (repo root) | |
+| --- | --- |
+| `bun run check` | Typecheck, lint, build |
+| `bun run build` | Build `packages/alchemy-viz/dist` |
+| `bun run smoke` | Pack the package, install it into a copy of the example, and check the dashboard under Node and Bun |
+
+CI runs the checks and the smoke test (Node 22 and 24) on every push and pull request.
+
+## Releasing
+
+```bash
+bun release patch   # or minor, major
+```
+
+`scripts/release.ts` checks that local `main` matches GitHub, shows the version it will release (`0.1.0 → 0.1.1`), runs the checks, then starts the [Release workflow](.github/workflows/release.yml) and follows it. The workflow bumps the version, runs the checks and the smoke test, commits and tags `vX.Y.Z` on `main`, publishes to npm and creates the GitHub Release with the tarball and generated notes. Nothing is committed or tagged unless every check passes. If publishing fails after tagging, re-run the failed job from the run's page. `--dry-run` shows the version without releasing anything.
+
+npm publishing uses [trusted publishing](https://docs.npmjs.com/trusted-publishers): no token is stored. The `alchemy-viz` package on npm names this repository and `release.yml` as its trusted publisher.
