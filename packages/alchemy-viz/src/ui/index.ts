@@ -21,7 +21,7 @@ export { AutoHeight, Collapse, Disclosure } from "./motion.tsx";
 export { type PropertyItem, PropertyList, type PropertySection, PropertyValue, toProperties } from "./property-list.tsx";
 export { Kbd, KeyValueList, Page, Panel, Split, useSplitSideBySide } from "./layout.tsx";
 export { type LogEntry, LogView } from "./log-view.tsx";
-export { TerminalOutput } from "./terminal.tsx";
+export { TerminalOutput, type TagLinker } from "./terminal.tsx";
 export { TabCount, Tabs, TabsList, TabsPanel, TabsTab } from "./tabs.tsx";
 export { Toaster, toast } from "./toast.tsx";
 export { Path, shortenHome } from "./path.tsx";

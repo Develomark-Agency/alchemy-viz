@@ -1,8 +1,9 @@
 import { Menu, MenuContent, MenuGroup, MenuGroupLabel, MenuItem, MenuSeparator, MenuTrigger } from "@ui-sdk/react/menu";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { Activity, Play, Rocket, ScrollText, Square, Terminal, Trash2 } from "lucide-react";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { Button, cn, Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogTitle, formatRelative, Input, TerminalOutput, toast } from "../../ui/index.ts";
+import { Button, cn, Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogTitle, formatRelative, Input, TerminalOutput, type TagLinker, toast } from "../../ui/index.ts";
 import type { RunCommand, RunInfo, RunResult, RunStatus } from "../../run.ts";
 import { useRefresh, useStack } from "./use-stack.ts";
 
@@ -225,22 +226,39 @@ function ConfirmRunDialog({ command, stage, isNewStage, onClose, onConfirm }: {
 }
 
 function OutputDialog({ open, onOpenChange, status }: { open: boolean, onOpenChange: (open: boolean) => void, status: RunStatus | undefined }) {
+  const { data } = useStack();
   const live = status?.runs.find(r => r.owned);
   const ran = live ?? status?.last;
   const lines = live ? status!.output : status?.last?.tail ?? [];
   const title = live ? `${commandLabels[live.command].doing} on ${live.stage}` : status?.last ? `${commandLabels[status.last.command].done} on ${status.last.stage}` : "Output";
+
+  // A log tag names a resource (`[Api]`), or one of its parts (`[Api/UPLOADS]`).
+  const resources = data?.stack.resources;
+  const linkTag = useMemo<TagLinker>(() => tag => {
+    const target = resources?.find(r => r.fqn === tag || r.logicalId === tag) ?? resources?.find(r => r.logicalId === tag.split("/")[0]);
+    if(!target) return undefined;
+    return (
+      <Link to="/r/$fqn" params={{ fqn: target.fqn }} onClick={() => onOpenChange(false)} title={`Open ${target.logicalId}`}>
+        {`[${tag}]`}
+      </Link>
+    );
+  }, [resources, onOpenChange]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[min(860px,calc(100vw-32px))]">
         <DialogTitle>{title}</DialogTitle>
         <DialogDescription>
-          {live ? "Still running. Its logs are also on the Logs page." : status?.last ? (status.last.stopped ? "Stopped." : status.last.code === 0 ? "Finished." : `Exited with code ${status.last.code}.`) : "Nothing has run from the dashboard yet."}
+          {live
+            ? <>Running. These logs are also on the <Link to="/logs" onClick={() => onOpenChange(false)} className="underline decoration-line-strong underline-offset-2 hover:text-fg hover:decoration-current">Logs page</Link>.</>
+            : status?.last ? (status.last.stopped ? "Stopped." : status.last.code === 0 ? "Finished." : `Exited with code ${status.last.code}.`) : "Nothing has run from the dashboard yet."}
         </DialogDescription>
         <DialogBody>
           <TerminalOutput
             title={ran ? `alchemy ${ran.command} --stage ${ran.stage}` : "alchemy"}
             lines={lines}
             live={!!live}
+            linkTag={linkTag}
             empty={live ? "Waiting for output…" : "No output."}
           />
         </DialogBody>
