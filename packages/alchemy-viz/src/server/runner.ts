@@ -168,7 +168,7 @@ export function makeRunner(options: {
         if(current && run.command === current.info.command && run.stage === current.info.stage) continue;
         runs.push(run);
       }
-      return { runs, last, output: current ? current.tail.slice(-40) : [] };
+      return { runs, last, output: current ? current.tail : [] };
     },
 
     async start({ command, stage, confirm }) {

@@ -2,7 +2,7 @@ import { Menu, MenuContent, MenuGroup, MenuGroupLabel, MenuItem, MenuSeparator, 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Activity, Play, Rocket, ScrollText, Square, Terminal, Trash2 } from "lucide-react";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { Button, cn, Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogTitle, formatRelative, Input, toast } from "../../ui/index.ts";
+import { Button, cn, Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogTitle, formatRelative, Input, TerminalOutput, toast } from "../../ui/index.ts";
 import type { RunCommand, RunInfo, RunResult, RunStatus } from "../../run.ts";
 import { useRefresh, useStack } from "./use-stack.ts";
 
@@ -115,6 +115,8 @@ export function RunProvider({ children }: { children: ReactNode }) {
   const start = useCallback(async (command: RunCommand, confirm?: string) => {
     try {
       client.setQueryData(runKey, await postRun({ action: "start", command, stage, confirm }));
+      // Dev is long-lived and chatty: show its output so the user can watch it come up.
+      if(command === "dev") setOutputOpen(true);
     } catch (error) {
       toast("Couldn't start", { description: error instanceof Error ? error.message : String(error) });
       throw error;
@@ -224,24 +226,23 @@ function ConfirmRunDialog({ command, stage, isNewStage, onClose, onConfirm }: {
 
 function OutputDialog({ open, onOpenChange, status }: { open: boolean, onOpenChange: (open: boolean) => void, status: RunStatus | undefined }) {
   const live = status?.runs.find(r => r.owned);
+  const ran = live ?? status?.last;
   const lines = live ? status!.output : status?.last?.tail ?? [];
   const title = live ? `${commandLabels[live.command].doing} on ${live.stage}` : status?.last ? `${commandLabels[status.last.command].done} on ${status.last.stage}` : "Output";
-  const box = useRef<HTMLPreElement>(null);
-  // Follow the output while it grows.
-  useEffect(() => {
-    if(open && box.current) box.current.scrollTop = box.current.scrollHeight;
-  }, [open, lines.length]);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[min(720px,calc(100vw-32px))]">
+      <DialogContent className="w-[min(860px,calc(100vw-32px))]">
         <DialogTitle>{title}</DialogTitle>
         <DialogDescription>
           {live ? "Still running. Its logs are also on the Logs page." : status?.last ? (status.last.stopped ? "Stopped." : status.last.code === 0 ? "Finished." : `Exited with code ${status.last.code}.`) : "Nothing has run from the dashboard yet."}
         </DialogDescription>
         <DialogBody>
-          <pre ref={box} className="max-h-[50vh] overflow-auto rounded-md border border-line bg-surface-2/50 p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap text-fg-muted">
-            {lines.length ? lines.join("\n") : "No output."}
-          </pre>
+          <TerminalOutput
+            title={ran ? `alchemy ${ran.command} --stage ${ran.stage}` : "alchemy"}
+            lines={lines}
+            live={!!live}
+            empty={live ? "Waiting for output…" : "No output."}
+          />
         </DialogBody>
       </DialogContent>
     </Dialog>
