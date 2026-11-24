@@ -1,14 +1,14 @@
-import { SQL } from "bun";
 import { z } from "zod";
 import { defineServer, type HandlerContext, handler, requireResource } from "../../../server/define.ts";
 import type { ColumnInfo, TableInfo } from "../d1/server.ts";
+import { connect, type Dialect, placeholder, type SqlClient } from "./client.ts";
 
 /**
  * A Hyperdrive's database, as `alchemy dev` reaches it.
  *
  * Locally Hyperdrive doesn't pool or cache: the Worker binding connects
  * straight to the config's `dev` origin, whose credentials Alchemy keeps in
- * local state. This connects to the same origin with Bun's Postgres/MySQL
+ * local state. This connects to the same origin with a Postgres or MySQL
  * client and answers in the D1 view's shapes, so the same table browser
  * and SQL console serve both.
  */
@@ -44,6 +44,10 @@ function isMysql(o: DevOrigin) {
   return o.scheme === "mysql";
 }
 
+function dialect(o: DevOrigin): Dialect {
+  return isMysql(o) ? "mysql" : "postgres";
+}
+
 async function url(ctx: HandlerContext, o: DevOrigin) {
   const scheme = isMysql(o) ? "mysql" : "postgres";
   const port = o.port ?? (isMysql(o) ? 3306 : 5432);
@@ -52,23 +56,24 @@ async function url(ctx: HandlerContext, o: DevOrigin) {
   return `${scheme}://${auth}@${o.host}:${port}/${encodeURIComponent(o.database)}${ssl}`;
 }
 
-const clients = new Map<string, SQL>();
+const clients = new Map<string, Promise<SqlClient>>();
 
 async function client(ctx: HandlerContext) {
   const o = devOrigin(ctx);
   const key = await url(ctx, o);
   let sql = clients.get(key);
   if(!sql) {
-    sql = new SQL({ url: key, max: 3, idleTimeout: 30, connectionTimeout: 5 });
+    sql = connect(dialect(o), key);
     clients.set(key, sql);
+    sql.catch(() => clients.delete(key));
   }
-  return { sql, origin: o };
+  return { sql: await sql, origin: o };
 }
 
 export async function closeHyperdriveClients() {
   const all = [...clients.values()];
   clients.clear();
-  await Promise.all(all.map(c => c.close().catch(() => {})));
+  await Promise.all(all.map(c => c.then(sql => sql.close()).catch(() => {})));
 }
 
 /** Rows made JSON-safe: big integers as strings, binary summarized. */
@@ -92,10 +97,10 @@ interface Table {
   label: string
 }
 
-async function listTables(sql: SQL, o: DevOrigin): Promise<Table[]> {
-  const rows = isMysql(o)
-    ? await sql.unsafe("SELECT table_schema AS s, table_name AS n, table_type AS t FROM information_schema.tables WHERE table_schema = DATABASE() ORDER BY table_name")
-    : await sql.unsafe("SELECT table_schema AS s, table_name AS n, table_type AS t FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog', 'information_schema') ORDER BY table_schema <> 'public', table_schema, table_name");
+async function listTables(sql: SqlClient, o: DevOrigin): Promise<Table[]> {
+  const { rows } = isMysql(o)
+    ? await sql.query("SELECT table_schema AS s, table_name AS n, table_type AS t FROM information_schema.tables WHERE table_schema = DATABASE() ORDER BY table_name")
+    : await sql.query("SELECT table_schema AS s, table_name AS n, table_type AS t FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog', 'information_schema') ORDER BY table_schema <> 'public', table_schema, table_name");
   return (rows as Array<{ s: string, n: string, t: string }>).map(r => ({
     schema: r.s,
     name: r.n,
@@ -108,27 +113,27 @@ function qualified(o: DevOrigin, t: Table) {
   return isMysql(o) ? quote(o, t.name) : `${quote(o, t.schema)}.${quote(o, t.name)}`;
 }
 
-async function columnsOf(sql: SQL, t: Table): Promise<ColumnInfo[]> {
-  // Tagged templates bind parameters in each dialect's own placeholder style.
-  const cols = await sql`
+async function columnsOf(sql: SqlClient, o: DevOrigin, t: Table): Promise<ColumnInfo[]> {
+  const [p1, p2] = [placeholder(dialect(o), 1), placeholder(dialect(o), 2)];
+  const cols = (await sql.query(`
     SELECT c.column_name AS name, c.data_type AS type, c.is_nullable AS nullable, c.ordinal_position AS pos
-    FROM information_schema.columns c WHERE c.table_schema = ${t.schema} AND c.table_name = ${t.name} ORDER BY c.ordinal_position
-  ` as Array<{ name: string, type: string, nullable: string }>;
-  const keys = await sql`
+    FROM information_schema.columns c WHERE c.table_schema = ${p1} AND c.table_name = ${p2} ORDER BY c.ordinal_position
+  `, [t.schema, t.name])).rows as Array<{ name: string, type: string, nullable: string }>;
+  const keys = (await sql.query(`
     SELECT k.column_name AS name, k.ordinal_position AS pos
     FROM information_schema.table_constraints tc
     JOIN information_schema.key_column_usage k ON k.constraint_name = tc.constraint_name AND k.table_schema = tc.table_schema AND k.table_name = tc.table_name
-    WHERE tc.constraint_type = 'PRIMARY KEY' AND tc.table_schema = ${t.schema} AND tc.table_name = ${t.name}
-  ` as Array<{ name: string, pos: number }>;
+    WHERE tc.constraint_type = 'PRIMARY KEY' AND tc.table_schema = ${p1} AND tc.table_name = ${p2}
+  `, [t.schema, t.name])).rows as Array<{ name: string, pos: number }>;
   return cols.map(c => ({ name: c.name, type: c.type, pk: Number(keys.find(k => k.name === c.name)?.pos ?? 0), notnull: c.nullable === "NO" }));
 }
 
-async function count(sql: SQL, o: DevOrigin, t: Table) {
-  const [row] = await sql.unsafe(`SELECT COUNT(*) AS n FROM ${qualified(o, t)}`) as Array<{ n: number | string | bigint }>;
+async function count(sql: SqlClient, o: DevOrigin, t: Table) {
+  const [row] = (await sql.query(`SELECT COUNT(*) AS n FROM ${qualified(o, t)}`)).rows as Array<{ n: number | string | bigint }>;
   return Number(row?.n ?? 0);
 }
 
-async function findTable(sql: SQL, o: DevOrigin, label: string) {
+async function findTable(sql: SqlClient, o: DevOrigin, label: string) {
   // Only interpolate names that exist, so a table name can't inject SQL.
   const t = (await listTables(sql, o)).find(x => x.label === label);
   if(!t) throw new Error(`No table '${label}'.`);
@@ -150,7 +155,7 @@ export default defineServer({
     let version: string | undefined;
     let error: string | undefined;
     try {
-      const [row] = await (await client(ctx)).sql.unsafe("SELECT version() AS v") as Array<{ v: string }>;
+      const [row] = (await (await client(ctx)).sql.query("SELECT version() AS v")).rows as Array<{ v: string }>;
       version = row?.v;
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
@@ -185,7 +190,7 @@ export default defineServer({
   schema: async (_: undefined, ctx): Promise<Record<string, string[]>> => {
     const { sql, origin } = await client(ctx);
     const tables = await listTables(sql, origin);
-    const entries = await Promise.all(tables.map(async t => [t.label, (await columnsOf(sql, t)).map(c => c.name)] as const));
+    const entries = await Promise.all(tables.map(async t => [t.label, (await columnsOf(sql, origin, t)).map(c => c.name)] as const));
     return Object.fromEntries(entries);
   },
 
@@ -194,19 +199,19 @@ export default defineServer({
     const { sql, origin } = await client(ctx);
     const t = await findTable(sql, origin, input.table);
     const offset = Number(input.cursor ?? 0);
-    const columns = await columnsOf(sql, t);
+    const columns = await columnsOf(sql, origin, t);
     const keys = columns.filter(c => c.pk > 0).sort((a, b) => a.pk - b.pk).map(c => quote(origin, c.name));
     // Postgres has no stable row order without one: page by the primary key.
     const order = keys.length ? ` ORDER BY ${keys.join(", ")}` : "";
-    const [rows, total] = await Promise.all([
-      sql.unsafe(`SELECT * FROM ${qualified(origin, t)}${order} LIMIT ${PAGE} OFFSET ${offset}`),
+    const [{ rows }, total] = await Promise.all([
+      sql.query(`SELECT * FROM ${qualified(origin, t)}${order} LIMIT ${PAGE} OFFSET ${offset}`),
       count(sql, origin, t)
     ]);
     return {
       columns,
-      rows: plain(rows as unknown[]),
+      rows: plain(rows),
       total,
-      cursor: offset + (rows as unknown[]).length < total ? String(offset + (rows as unknown[]).length) : undefined
+      cursor: offset + rows.length < total ? String(offset + rows.length) : undefined
     };
   }),
 
@@ -214,9 +219,9 @@ export default defineServer({
   query: handler(z.object({ sql: z.string().trim().min(1, "Enter a SQL statement") }), async (input, ctx) => {
     const { sql } = await client(ctx);
     const started = performance.now();
-    const result = await sql.unsafe(input.sql) as unknown[] & { count?: number, command?: string };
-    const rows = plain(result);
-    const changes = result.command && result.command !== "SELECT" ? Number(result.count ?? 0) : 0;
+    const result = await sql.query(input.sql);
+    const rows = plain(result.rows);
+    const changes = result.changes;
     return {
       rows,
       meta: {

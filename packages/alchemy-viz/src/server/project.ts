@@ -5,23 +5,97 @@
  * node_modules: it uses the project's copies, so Effect service tags and
  * Alchemy internals are the exact instances the stack was built with.
  */
-import { existsSync } from "node:fs";
-import { dirname, isAbsolute, resolve } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import * as NodeModule from "node:module";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { resolveModulePath } from "exsolve";
 import type { ModuleRef, PageEntry, ResourceInfo, ViewEntry, VizConfig, VizPlugin } from "../types.ts";
 import { validateConfig } from "./config-schema.ts";
 
 export const CONFIG_FILES = ["alchemy-viz.config.ts", "alchemy-viz.config.js", "alchemy-viz.config.mjs"];
 
+/** Running from `src/` (the monorepo) rather than the built `dist/`. */
+export const FROM_SOURCE = import.meta.url.endsWith(".ts");
+
+/**
+ * The export condition that points this package's entry points at `src/`.
+ * The monorepo's example starts the CLI with it, so the config, plugins and
+ * views all use the source, not a build.
+ */
+export const SOURCE_CONDITION = "alchemy-viz-source";
+
+/**
+ * Export conditions matching how the runtime itself resolves, so a module
+ * resolved here is the same instance the project's own imports load. Bun
+ * picks a package's `bun` export (Alchemy's TypeScript source) first.
+ */
+const CONDITIONS = [
+  ...(FROM_SOURCE ? [SOURCE_CONDITION] : []),
+  ...(process.versions.bun ? ["bun"] : []),
+  "node",
+  "import",
+  "default"
+];
+
+/** Resolves an import specifier the way an import in a file in `dir` would. */
+export function resolveFrom(specifier: string, dir: string): string {
+  return resolveModulePath(specifier, { from: pathToFileURL(join(dir, "/")), conditions: CONDITIONS });
+}
+
+/**
+ * The directory of an installed package, as seen from `dir`. Many packages
+ * don't export their `package.json`, so this falls back to resolving the
+ * package's main entry and walking up to its manifest.
+ */
+export function packageDir(name: string, dir: string): string {
+  try {
+    return dirname(resolveFrom(`${name}/package.json`, dir));
+  } catch {
+    let current = dirname(resolveFrom(name, dir));
+    while(current !== dirname(current)) {
+      const manifest = join(current, "package.json");
+      if(existsSync(manifest) && JSON.parse(readFileSync(manifest, "utf8")).name === name) return current;
+      current = dirname(current);
+    }
+    throw new Error(`Couldn't find the package directory of '${name}' from ${dir}.`);
+  }
+}
+
 export function makeImportFromProject(root: string) {
   return async <T = any>(specifier: string, options?: { via?: string }): Promise<T> => {
     // `via` resolves a transitive dependency through a direct one, e.g.
     // `@alchemy.run/cloudflare-runtime` via `@alchemy.run/cloudflare`.
-    const base = options?.via
-      ? dirname(Bun.resolveSync(`${options.via}/package.json`, root))
-      : root;
-    return import(Bun.resolveSync(specifier, base)) as Promise<T>;
+    const base = options?.via ? packageDir(options.via, root) : root;
+    return import(pathToFileURL(resolveFrom(specifier, base)).href) as Promise<T>;
   };
+}
+
+let typeScriptLoader: Promise<void> | undefined;
+
+/**
+ * Lets Node import the project's TypeScript: the config, plugin server
+ * modules, and the stack entrypoint Alchemy imports to find its state store.
+ *
+ * Bun runs TypeScript itself. Under Node this registers the loader the
+ * `alchemy` CLI uses for the same files, from the project's own Alchemy, so
+ * the project's code is compiled and resolved exactly as `alchemy dev` does
+ * it (tsconfig `paths`, extensionless imports, TSX). Like Node's own type
+ * stripping, it leaves `node_modules` alone: installed packages ship
+ * JavaScript.
+ */
+export function registerTypeScript(root: string) {
+  if(process.versions.bun) return Promise.resolve();
+  return (typeScriptLoader ??= (async () => {
+    if(typeof NodeModule.registerHooks !== "function") {
+      throw new Error(`alchemy-viz needs Node 22.22.3, 24.11.1 or newer (this is ${process.versions.node}).`);
+    }
+    const { registerOxc } = await makeImportFromProject(root)<{ registerOxc(options: { filter(path: string): boolean }): void }>(
+      "@alchemy.run/node-utils/register-oxc",
+      { via: "alchemy" }
+    );
+    registerOxc({ filter: path => !/[\\/]node_modules[\\/]/.test(path) });
+  })());
 }
 
 export interface ResolvedView {
@@ -66,7 +140,7 @@ function toPath(ref: ModuleRef, base: string, root: string) {
   if(isAbsolute(ref)) return ref;
   if(ref.startsWith("./") || ref.startsWith("../")) return resolve(base, ref);
   try {
-    return Bun.resolveSync(ref, root);
+    return resolveFrom(ref, root);
   } catch {
     throw new Error(`Couldn't resolve '${ref}' from ${root}. Use a relative path, an absolute path, or an installed package's export.`);
   }
@@ -90,6 +164,7 @@ export async function loadConfig(options: {
     throw new Error(`Config file not found: ${configFile}`);
   }
   const root = configFile ? dirname(configFile) : options.cwd;
+  await registerTypeScript(root);
   const config = (configFile
     ? validateConfig((await import(pathToFileURL(configFile).href)).default, configFile)
     : {}) as VizConfig;

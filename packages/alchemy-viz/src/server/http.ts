@@ -10,11 +10,11 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import tailwind from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
-import { createServer as createVite } from "vite";
+import { createServer as createVite, defaultClientConditions } from "vite";
 import type { ResourceInfo, StackInfo } from "../types.ts";
 import { type HandlerContext, InputError } from "./define.ts";
 import { readLogs } from "./logs.ts";
-import { type LoadedConfig, makeImportFromProject, viewsFor } from "./project.ts";
+import { FROM_SOURCE, type LoadedConfig, makeImportFromProject, packageDir, SOURCE_CONDITION, viewsFor } from "./project.ts";
 import { registryPlugin, tailwindSourcesPlugin } from "./registry-plugin.ts";
 import { callHandler } from "./rpc.ts";
 import { makeRunner, RunConflict, RunInputError } from "./runner.ts";
@@ -42,12 +42,20 @@ const SHARED = [
  * `node_modules/.bun` store, pnpm's), where Vite won't serve from, so allow
  * each one's real directory.
  */
+/**
+ * This package's own browser entry points. Views import them by name
+ * (`alchemy-viz/ui`) while the shell imports the same files by path, so
+ * they must not be pre-bundled: a pre-bundled copy is a second instance of
+ * every module in it, with its own toasts, contexts and state.
+ */
+const OWN_ENTRIES = ["alchemy-viz", "alchemy-viz/client", "alchemy-viz/ui", "alchemy-viz/cloudflare", "alchemy-viz/turso"];
+
 const ASSET_PACKAGES = ["@fontsource-variable/ibm-plex-sans", "@fontsource/ibm-plex-mono"];
 
 function assetPackages() {
   return ASSET_PACKAGES.flatMap(name => {
     try {
-      return [dirname(realpathSync(Bun.resolveSync(`${name}/package.json`, packageRoot)))];
+      return [realpathSync(packageDir(name, packageRoot))];
     } catch {
       return [];
     }
@@ -246,12 +254,17 @@ export async function startServer(config: LoadedConfig) {
       react(),
       registryPlugin(config.views, config.pages)
     ],
-    resolve: { dedupe: SHARED },
+    resolve: {
+      dedupe: SHARED,
+      // From source, `alchemy-viz/*` in views resolves to `src/` too, matching the shell.
+      ...(FROM_SOURCE ? { conditions: [SOURCE_CONDITION, ...defaultClientConditions] } : {})
+    },
     // Views load lazily through the registry, which Vite's dependency scan
     // can't see into. Scanning them up front pre-bundles everything in one
     // pass; a dependency found later is bundled separately, and libraries
     // that check `instanceof` across packages (CodeMirror) then break.
     optimizeDeps: {
+      exclude: OWN_ENTRIES,
       entries: [join(appRoot, "index.html"), ...[...config.views, ...config.pages].map(entry => entry.view)],
       include: [
         "react",

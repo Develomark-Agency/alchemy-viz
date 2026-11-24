@@ -3,6 +3,8 @@
  *
  * Server modules are imported natively (not through Vite) and re-imported
  * when the file changes, so editing a handler takes effect on the next call.
+ * Only the server module itself reloads; modules it imports keep their
+ * first version.
  */
 import { statSync } from "node:fs";
 import { pathToFileURL } from "node:url";
@@ -11,13 +13,20 @@ import { type HandlerContext, parseInput, type ServerDefinition } from "./define
 const loaded = new Map<string, number>();
 
 export async function loadServerModule(file: string): Promise<ServerDefinition> {
-  // Bun caches modules by path and ignores a `?v=` query, so a changed file
-  // is dropped from the cache before it's imported again. Only the server
-  // module itself reloads; modules it imports keep their first version.
   const version = statSync(file).mtimeMs;
-  if(loaded.has(file) && loaded.get(file) !== version) delete require.cache[file];
+  const changed = loaded.has(file) && loaded.get(file) !== version;
   loaded.set(file, version);
-  const mod = await import(pathToFileURL(file).href);
+  const url = pathToFileURL(file).href;
+  let mod;
+  if(process.versions.bun) {
+    // Bun caches modules by path and ignores a `?v=` query, so a changed
+    // file is dropped from the cache before it's imported again.
+    if(changed) delete require.cache[file];
+    mod = await import(url);
+  } else {
+    // Node caches by URL, query included.
+    mod = await import(`${url}?v=${version}`);
+  }
   const def = mod.default;
   if(!def || def.__alchemyViz !== "server") {
     throw new Error(`${file} must \`export default defineServer({...})\` from "alchemy-viz/server".`);

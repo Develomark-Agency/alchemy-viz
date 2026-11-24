@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process";
 import { z } from "zod";
 import { defineServer, type HandlerContext, handler, requireResource } from "../../../server/define.ts";
 
@@ -26,19 +27,13 @@ export interface ContainerInfo {
 }
 
 async function docker(args: string[], options: { timeoutMs?: number } = {}) {
-  let proc: ReturnType<typeof Bun.spawn>;
-  try {
-    proc = Bun.spawn(["docker", ...args], { stdout: "pipe", stderr: "pipe", env: process.env });
-  } catch {
-    throw new Error("The docker CLI isn't installed or isn't on PATH. Local containers run in Docker.");
-  }
-  const timer = setTimeout(() => proc.kill(), options.timeoutMs ?? 15_000);
-  const [stdout, stderr, code] = await Promise.all([
-    new Response(proc.stdout as ReadableStream).text(),
-    new Response(proc.stderr as ReadableStream).text(),
-    proc.exited
-  ]);
-  clearTimeout(timer);
+  const { stdout, stderr, code, missing } = await new Promise<{ stdout: string, stderr: string, code: number | null, missing: boolean }>(done => {
+    execFile("docker", args, { env: process.env, timeout: options.timeoutMs ?? 15_000, maxBuffer: 64 * 1024 * 1024 }, (error, stdout, stderr) => {
+      const err = error as (NodeJS.ErrnoException & { code?: string | number }) | null;
+      done({ stdout, stderr, code: err ? (typeof err.code === "number" ? err.code : 1) : 0, missing: err?.code === "ENOENT" });
+    });
+  });
+  if(missing) throw new Error("The docker CLI isn't installed or isn't on PATH. Local containers run in Docker.");
   if(code !== 0) {
     if(/Cannot connect to the Docker daemon|daemon is not running|error during connect/i.test(stderr)) {
       throw new Error("Docker isn't running. Start Docker, then `alchemy dev` can run this Container.");

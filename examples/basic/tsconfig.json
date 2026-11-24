@@ -8,6 +8,8 @@
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
     "jsx": "react-jsx",
+    // alchemy-viz's types from its source, not a build.
+    "customConditions": ["alchemy-viz-source"],
     "types": ["bun", "@cloudflare/workers-types"]
   },
   "include": ["alchemy.run.ts", "alchemy-viz.config.ts", "src/**/*", "viz/**/*", "scripts/**/*"]

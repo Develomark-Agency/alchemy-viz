@@ -10,8 +10,12 @@ import { dashboardLink, isLocalResource } from "./links.ts";
 import { closeHyperdriveClients } from "./hyperdrive/server.ts";
 import { disposeLocalRuntime, localSpec } from "./runtime.ts";
 
+/**
+ * A module next to this one. Built, every `.ts`/`.tsx` file is a `.mjs`
+ * beside its source's place, so the reference follows.
+ */
 function file(path: string) {
-  return new URL(path, import.meta.url);
+  return new URL(import.meta.url.endsWith(".mjs") ? path.replace(/\.tsx?$/, ".mjs") : path, import.meta.url);
 }
 
 function bindsSendEmail(worker: ResourceInfo) {

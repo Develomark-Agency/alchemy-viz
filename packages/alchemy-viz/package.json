@@ -1,22 +1,79 @@
 {
   "name": "alchemy-viz",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "A local dashboard for exploring and interacting with Alchemy stacks.",
-  "type": "module",
-  "bin": {
-    "alchemy-viz": "./src/cli.ts"
+  "keywords": [
+    "alchemy",
+    "cloudflare",
+    "dashboard",
+    "devtools",
+    "infrastructure-as-code"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Develomark-Agency/alchemy-viz.git",
+    "directory": "packages/alchemy-viz"
   },
+  "homepage": "https://github.com/Develomark-Agency/alchemy-viz#readme",
+  "bugs": "https://github.com/Develomark-Agency/alchemy-viz/issues",
+  "type": "module",
+  "engines": {
+    "node": "^22.22.3 || >=24.11.1"
+  },
+  "bin": {
+    "alchemy-viz": "./dist/cli.mjs"
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
   "exports": {
-    ".": "./src/index.ts",
-    "./server": "./src/server/define.ts",
-    "./client": "./src/client/index.tsx",
-    "./ui": "./src/ui/index.ts",
-    "./ui/styles.css": "./src/ui/styles.css",
-    "./cloudflare": "./src/plugins/cloudflare/index.ts",
-    "./turso": "./src/plugins/turso/index.ts"
+    ".": {
+      "alchemy-viz-source": "./src/index.ts",
+      "types": "./dist/index.d.mts",
+      "default": "./dist/index.mjs"
+    },
+    "./server": {
+      "alchemy-viz-source": "./src/server/define.ts",
+      "types": "./dist/server/define.d.mts",
+      "default": "./dist/server/define.mjs"
+    },
+    "./client": {
+      "alchemy-viz-source": "./src/client/index.tsx",
+      "types": "./dist/client/index.d.mts",
+      "default": "./dist/client/index.mjs"
+    },
+    "./ui": {
+      "alchemy-viz-source": "./src/ui/index.ts",
+      "types": "./dist/ui/index.d.mts",
+      "default": "./dist/ui/index.mjs"
+    },
+    "./ui/theme.css": {
+      "alchemy-viz-source": "./src/ui/theme.css",
+      "default": "./dist/ui/theme.css"
+    },
+    "./cloudflare": {
+      "alchemy-viz-source": "./src/plugins/cloudflare/index.ts",
+      "types": "./dist/plugins/cloudflare/index.d.mts",
+      "default": "./dist/plugins/cloudflare/index.mjs"
+    },
+    "./turso": {
+      "alchemy-viz-source": "./src/plugins/turso/index.ts",
+      "types": "./dist/plugins/turso/index.d.mts",
+      "default": "./dist/plugins/turso/index.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "prepack": "tsdown"
   },
   "dependencies": {
     "@codemirror/lang-json": "^6.0.2",
@@ -41,9 +98,12 @@
     "cmd-ts": "0.15.0",
     "cn": "0.5.2",
     "elkjs": "^0.12.1",
+    "exsolve": "^1.2.0",
     "lucide-react": "^1.78.0",
     "motion": "14.14.0",
+    "mysql2": "^3.24.6",
     "papaparse": "^5.7.1",
+    "postgres": "^4.1.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-markdown": "^10.1.0",
@@ -63,6 +123,8 @@
     "@types/papaparse": "^5.5.2",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
+    "publint": "^0.3.25",
+    "tsdown": "^0.23.7",
     "typescript": "^5.9.3"
   }
 }

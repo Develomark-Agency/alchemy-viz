@@ -6,7 +6,7 @@
 import { Resource } from "alchemy";
 import * as Provider from "alchemy/Provider";
 import * as Effect from "effect/Effect";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
 export interface FeatureFlagsProps {
@@ -36,7 +36,7 @@ export function FeatureFlagsProvider() {
         const file = flagsFile(id);
         let current: Record<string, boolean> = {};
         try {
-          current = JSON.parse(await Bun.file(file).text());
+          current = JSON.parse(await readFile(file, "utf8"));
         } catch {}
         const merged = { ...news.flags, ...current };
         await mkdir(dirname(file), { recursive: true });

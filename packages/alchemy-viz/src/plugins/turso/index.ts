@@ -10,8 +10,12 @@
 import { definePlugin } from "../../index.ts";
 import type { ResourceInfo } from "../../types.ts";
 
+/**
+ * A module next to this one. Built, every `.ts`/`.tsx` file is a `.mjs`
+ * beside its source's place, so the reference follows.
+ */
 function file(path: string) {
-  return new URL(path, import.meta.url);
+  return new URL(import.meta.url.endsWith(".mjs") ? path.replace(/\.tsx?$/, ".mjs") : path, import.meta.url);
 }
 
 const APP = "https://app.turso.tech";

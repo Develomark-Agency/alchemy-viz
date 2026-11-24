@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { readFile, writeFile } from "node:fs/promises";
 import { defineServer, handler, requireResource } from "alchemy-viz/server";
 import { z } from "zod";
 import type { FeatureFlagsAttributes, FeatureFlagsProps } from "../../src/feature-flags.ts";
@@ -5,12 +7,11 @@ import type { FeatureFlagsAttributes, FeatureFlagsProps } from "../../src/featur
 type Flags = Record<string, boolean>;
 
 async function read(file: string): Promise<Flags> {
-  const f = Bun.file(file);
-  return (await f.exists()) ? f.json() : {};
+  return existsSync(file) ? JSON.parse(await readFile(file, "utf8")) : {};
 }
 
 function write(file: string, flags: Flags) {
-  return Bun.write(file, JSON.stringify(flags, null, 2));
+  return writeFile(file, JSON.stringify(flags, null, 2));
 }
 
 const flagName = z.string().trim().regex(/^[a-zA-Z][a-zA-Z0-9_-]*$/, "Use letters, digits, - and _, starting with a letter");

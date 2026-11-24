@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "alchemy dev",
-    "viz": "alchemy-viz",
+    "viz": "bun --conditions=alchemy-viz-source ../../packages/alchemy-viz/src/cli.ts",
     "typecheck": "tsc --noEmit",
     "seed": "bun scripts/seed.ts",
     "db:up": "docker run -d --name alchemy-viz-example-pg -p 54329:5432 -e POSTGRES_USER=app -e POSTGRES_PASSWORD=app -e POSTGRES_DB=app -v ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro postgres:16",

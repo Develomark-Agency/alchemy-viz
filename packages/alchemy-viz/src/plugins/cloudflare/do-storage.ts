@@ -11,7 +11,7 @@
  * Files are opened with writes disabled, so a running object never sees
  * its storage change under it.
  */
-import { Database } from "bun:sqlite";
+import type { DatabaseSync } from "node:sqlite";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { deserializeV8, Unsupported } from "./v8-deserialize.ts";
@@ -48,12 +48,17 @@ export function listObjects(dir: string): ObjectFile[] {
 export function openObject(file: string) {
   // `readonly` can't attach to a database another process holds in WAL
   // mode; open it normally and refuse writes at the connection instead.
-  const db = new Database(file, { readwrite: true, create: false });
-  db.run("PRAGMA query_only = ON");
+  if(!existsSync(file)) throw new Error(`No storage file at ${file}.`);
+  // Loaded on first use rather than imported: Node flags `node:sqlite` as
+  // experimental and warns when it loads, which the CLI hides (see
+  // node-warnings.ts) but can only once it's running.
+  const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
+  const db = new DatabaseSync(file);
+  db.exec("PRAGMA query_only = ON");
   return db;
 }
 
-export function withObject<T>(file: string, fn: (db: Database) => T): T {
+export function withObject<T>(file: string, fn: (db: DatabaseSync) => T): T {
   const db = openObject(file);
   try {
     return fn(db);
@@ -62,8 +67,8 @@ export function withObject<T>(file: string, fn: (db: Database) => T): T {
   }
 }
 
-function hasTable(db: Database, name: string) {
-  return db.query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name) !== null;
+function hasTable(db: DatabaseSync, name: string) {
+  return db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name) !== undefined;
 }
 
 /** A stored value made JSON-safe for the browser. */
@@ -102,15 +107,15 @@ export function decodeValue(raw: Uint8Array): unknown {
 }
 
 /** Keys of the key-value API, in key order. */
-export function readKv(db: Database, options: { prefix?: string, limit?: number, offset?: number } = {}): { entries: KvEntry[], total: number } {
+export function readKv(db: DatabaseSync, options: { prefix?: string, limit?: number, offset?: number } = {}): { entries: KvEntry[], total: number } {
   if(!hasTable(db, "_cf_KV")) return { entries: [], total: 0 };
   const prefix = options.prefix ?? "";
   // `key >= prefix AND key < prefix + U+FFFF` is a prefix match that uses the key's index.
   const where = prefix ? "WHERE key >= ?1 AND key < ?1 || char(65535)" : "";
   const params = prefix ? [prefix] : [];
-  const total = (db.query(`SELECT COUNT(*) AS n FROM _cf_KV ${where}`).get(...params) as { n: number }).n;
+  const total = (db.prepare(`SELECT COUNT(*) AS n FROM _cf_KV ${where}`).get(...params) as { n: number }).n;
   const rows = db
-    .query(`SELECT key, value FROM _cf_KV ${where} ORDER BY key LIMIT ${options.limit ?? 500} OFFSET ${options.offset ?? 0}`)
+    .prepare(`SELECT key, value FROM _cf_KV ${where} ORDER BY key LIMIT ${options.limit ?? 500} OFFSET ${options.offset ?? 0}`)
     .all(...params) as Array<{ key: string, value: Uint8Array }>;
   const entries = rows.map(({ key, value }) => {
     try {
@@ -123,9 +128,9 @@ export function readKv(db: Database, options: { prefix?: string, limit?: number,
 }
 
 /** One value of the key-value API, decoded, or undefined when the key is absent or undecodable. */
-export function readKvValue<T = unknown>(db: Database, key: string): T | undefined {
+export function readKvValue<T = unknown>(db: DatabaseSync, key: string): T | undefined {
   if(!hasTable(db, "_cf_KV")) return undefined;
-  const row = db.query("SELECT value FROM _cf_KV WHERE key = ?").get(key) as { value: Uint8Array } | null;
+  const row = db.prepare("SELECT value FROM _cf_KV WHERE key = ?").get(key) as { value: Uint8Array } | undefined;
   if(!row) return undefined;
   try {
     return decodeValue(row.value) as T;
@@ -144,27 +149,27 @@ function quote(identifier: string) {
 }
 
 /** Tables the object created with its SQL API (workerd's own `_cf_*` tables left out). */
-export function listTables(db: Database): SqlTable[] {
+export function listTables(db: DatabaseSync): SqlTable[] {
   const names = db
-    .query("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY name")
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY name")
     .all() as Array<{ name: string }>;
-  return names.map(({ name }) => ({ name, rows: (db.query(`SELECT COUNT(*) AS n FROM ${quote(name)}`).get() as { n: number }).n }));
+  return names.map(({ name }) => ({ name, rows: (db.prepare(`SELECT COUNT(*) AS n FROM ${quote(name)}`).get() as { n: number }).n }));
 }
 
 /** A page of a table's rows, with blobs summarized. */
-export function readTable(db: Database, table: string, offset: number, limit: number) {
+export function readTable(db: DatabaseSync, table: string, offset: number, limit: number) {
   if(!listTables(db).some(t => t.name === table)) throw new Error(`No table '${table}'.`);
-  const columns = (db.query(`PRAGMA table_info(${quote(table)})`).all() as Array<{ name: string, type: string, pk: number }>)
+  const columns = (db.prepare(`PRAGMA table_info(${quote(table)})`).all() as Array<{ name: string, type: string, pk: number }>)
     .map(c => ({ name: c.name, type: c.type, pk: c.pk }));
-  const rows = (db.query(`SELECT * FROM ${quote(table)} LIMIT ${limit} OFFSET ${offset}`).all() as Array<Record<string, unknown>>)
+  const rows = (db.prepare(`SELECT * FROM ${quote(table)} LIMIT ${limit} OFFSET ${offset}`).all() as Array<Record<string, unknown>>)
     .map(row => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, v instanceof Uint8Array ? `<${v.byteLength} bytes>` : v])));
   return { columns, rows };
 }
 
 /** Runs a read-only statement against an object's SQL storage. */
-export function queryObject(db: Database, sql: string) {
+export function queryObject(db: DatabaseSync, sql: string) {
   const started = performance.now();
-  const rows = (db.query(sql).all() as Array<Record<string, unknown>>)
+  const rows = (db.prepare(sql).all() as Array<Record<string, unknown>>)
     .map(row => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, v instanceof Uint8Array ? `<${v.byteLength} bytes>` : v])));
   return { rows, durationMs: Math.round((performance.now() - started) * 10) / 10 };
 }

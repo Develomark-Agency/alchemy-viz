@@ -1,4 +1,4 @@
-import type { Database } from "bun:sqlite";
+import type { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
 import { z } from "zod";
 import { defineServer, type HandlerContext, handler, requireResource } from "../../../server/define.ts";
@@ -109,9 +109,9 @@ function safe(value: unknown) {
   return value === undefined ? undefined : toJsonSafe(value);
 }
 
-function readStates(db: Database): StateRow[] {
-  const exists = db.query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'states'").get();
-  return exists ? (db.query("SELECT event, target, groupKey, timestamp, metadata FROM states ORDER BY id").all() as StateRow[]) : [];
+function readStates(db: DatabaseSync): StateRow[] {
+  const exists = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'states'").get();
+  return exists ? (db.prepare("SELECT event, target, groupKey, timestamp, metadata FROM states ORDER BY id").all() as unknown as StateRow[]) : [];
 }
 
 function timeline(states: StateRow[]): Step[] {
@@ -167,7 +167,7 @@ function timeline(states: StateRow[]): Step[] {
   return [...steps.values()];
 }
 
-function summarize(db: Database): (InstanceDetail & { states: StateRow[] }) | undefined {
+function summarize(db: DatabaseSync): (InstanceDetail & { states: StateRow[] }) | undefined {
   const metadata = readKvValue<Metadata>(db, "INSTANCE_METADATA");
   if(!metadata?.instance?.id) return undefined;
   const states = readStates(db);

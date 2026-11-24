@@ -1,8 +1,9 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 /**
  * The `alchemy-viz` command. Run it from an Alchemy project while
- * `alchemy dev` is running.
+ * `alchemy dev` is running. Runs on Node (22.22.3, 24.11.1 or newer) and Bun.
  */
+import "./node-warnings.ts";
 import { command, extendType, number, option, optional, run, string } from "cmd-ts";
 import pkg from "../package.json" with { type: "json" };
 import { cloudflare } from "./plugins/cloudflare/index.ts";
@@ -49,11 +50,6 @@ const cli = command({
     { description: "Explore another stage on a fixed port", command: "alchemy-viz --stage prod --port 5000" }
   ],
   handler: async args => {
-    if(typeof Bun === "undefined") {
-      console.error("alchemy-viz runs on Bun. Start it with `bunx alchemy-viz` or `bun run alchemy-viz`.");
-      process.exit(1);
-    }
-
     const config = await loadConfig({
       cwd: process.cwd(),
       config: args.config,
