@@ -6,9 +6,9 @@ import { modeOf } from "./resource-mode.ts";
 type Mode = ReturnType<typeof modeOf>;
 
 /** Where a resource runs, as a mark: a laptop for a local simulator, a cloud for the cloud, a question mark when it can't be told. */
-export function ModeIcon({ mode, size = 14, className }: { mode: Mode, size?: number, className?: string }) {
+export function ModeIcon({ mode, size = 14, strokeWidth = 1.75, className }: { mode: Mode, size?: number, /** Heavier for tiny marks, which thin strokes blur away. */ strokeWidth?: number, className?: string }) {
   const Icon = mode === "local" ? Laptop : mode === "live" ? Cloud : CircleHelp;
-  return <Icon aria-hidden style={{ width: size, height: size }} className={cn("shrink-0", className)} strokeWidth={1.75} />;
+  return <Icon aria-hidden style={{ width: size, height: size }} className={cn("shrink-0", className)} strokeWidth={strokeWidth} />;
 }
 
 /** What the mark says, in one word (it sits in a tooltip sized by the provider and kind, so it must not be wider): where it runs, or that it failed. */

@@ -5,6 +5,7 @@ import { AnimatePresence, LayoutGroup, motion, type Transition, useReducedMotion
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ResourceInfo, StackInfo } from "../../types.ts";
 import { AutoHeight, cn, easeOut, Kbd, SearchInput } from "../../ui/index.ts";
+import { ModeIcon } from "./mode-icon.tsx";
 import { ProviderTip } from "./providers.tsx";
 import { matchesMode, type ModeFilter, modeOf } from "./resource-mode.ts";
 import { ResourceIcon } from "./resource-icon.tsx";
@@ -152,14 +153,14 @@ export function Megamenu({ stack, onNavigate }: { stack: StackInfo, onNavigate: 
                                       >
                                         <span className="relative shrink-0">
                                           <ResourceIcon type={r.type} size={32} />
+                                          {/* Where it runs, as a mark on a green badge: neither place is a problem, so neither gets a warning color. */}
                                           {mode && (
                                             <span
                                               title={mode === "local" ? "Running locally" : "Cloud only"}
-                                              className={cn(
-                                                "absolute -top-0.5 -right-0.5 size-2.5 rounded-full ring-2 ring-surface transition-[box-shadow] group-hover/item:ring-hover group-aria-[current=page]/item:ring-hover",
-                                                mode === "local" ? "bg-ok" : "bg-warn"
-                                              )}
-                                            />
+                                              className="absolute -top-1 -right-1 flex size-3.5 items-center justify-center rounded-full bg-ok text-surface ring-2 ring-surface transition-[box-shadow] group-hover/item:ring-hover group-aria-[current=page]/item:ring-hover"
+                                            >
+                                              <ModeIcon mode={mode} size={8} strokeWidth={2.75} />
+                                            </span>
                                           )}
                                         </span>
                                         <span className="flex min-w-0 flex-col gap-0.5">
