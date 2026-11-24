@@ -21,6 +21,13 @@ const Api = Effect.gen(function* () {
     value: Redacted.make("sk_test_local_only")
   });
 
+  // Opt in with EXAMPLE_HYPERDRIVE=1 after `bun run db:up` starts Postgres in Docker.
+  // In alchemy dev the binding connects to the `dev` origin; `origin` is what a deploy would use.
+  const pg = { scheme: "postgres", host: "localhost", port: 54329, database: "app", user: "app", password: Redacted.make("app") } as const;
+  const hyperdrive = process.env.EXAMPLE_HYPERDRIVE
+    ? yield* Cloudflare.Hyperdrive.Connection("Postgres", { origin: pg, dev: { ...pg, sslmode: "disable" } })
+    : undefined;
+
   const worker = yield* Cloudflare.Worker("Api", {
     main: "./src/worker.ts",
     crons: ["*/5 * * * *"],
@@ -33,6 +40,7 @@ const Api = Effect.gen(function* () {
       EMAIL: Cloudflare.Email.SendEmail("Email"),
       COUNTER: Cloudflare.DurableObject<Counter>("Counter"),
       ONBOARDING: Cloudflare.Workflow<{ email: string }>("Onboarding", { className: "Onboarding" }),
+      ...(hyperdrive ? { HYPERDRIVE: hyperdrive } : {}),
       ...(withContainers ? { SANDBOX: Cloudflare.DurableObject("Sandbox", { containers: [Shell] }) } : {}),
       GREETING: "hello from alchemy-viz"
     }

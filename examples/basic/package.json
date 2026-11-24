@@ -6,7 +6,9 @@
     "dev": "alchemy dev",
     "viz": "alchemy-viz",
     "typecheck": "tsc --noEmit",
-    "seed": "bun scripts/seed.ts"
+    "seed": "bun scripts/seed.ts",
+    "db:up": "docker run -d --name alchemy-viz-example-pg -p 54329:5432 -e POSTGRES_USER=app -e POSTGRES_PASSWORD=app -e POSTGRES_DB=app -v ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro postgres:16",
+    "db:down": "docker rm -f alchemy-viz-example-pg"
   },
   "dependencies": {
     "@alchemy.run/cloudflare": "2.0.0-beta.87",
