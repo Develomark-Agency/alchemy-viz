@@ -11,9 +11,9 @@ export function ModeIcon({ mode, size = 14, className }: { mode: Mode, size?: nu
   return <Icon aria-hidden style={{ width: size, height: size }} className={cn("shrink-0", className)} strokeWidth={1.75} />;
 }
 
-/** What the mark says, in a few words: where it runs, or that it failed. */
+/** What the mark says, in one word (it sits in a tooltip sized by the provider and kind, so it must not be wider): where it runs, or that it failed. */
 export function placeText(r: ResourceInfo, failed: boolean) {
-  if(failed) return r.failedBy ? `Blocked by ${r.failedBy}` : "Failed";
+  if(failed) return r.failedBy ? "Blocked" : "Failed";
   const mode = modeOf(r);
-  return mode === "local" ? "Running locally" : mode === "live" ? "Running in the cloud" : "Location unknown";
+  return mode === "local" ? "Local" : mode === "live" ? "Cloud" : "Unknown";
 }
