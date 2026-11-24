@@ -1,11 +1,13 @@
 import { Menu, MenuContent, MenuGroupLabel, MenuItem, MenuItemIndicator, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger } from "@ui-sdk/react/menu";
 import { NavigationMenu, NavigationMenuContent, NavigationMenuItem, NavigationMenuList, NavigationMenuTrigger } from "@ui-sdk/react/navigation-menu";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Activity, Check, ChevronDown, ChevronsUpDown, Layers, LayoutGrid, Monitor, Moon, RefreshCw, ScrollText, Search, Sun } from "lucide-react";
+import { Activity, Check, ChevronDown, ChevronsUpDown, Layers, LayoutGrid, Monitor, Moon, Plus, RefreshCw, ScrollText, Search, Sun } from "lucide-react";
 import { type PointerEvent as ReactPointerEvent, type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { cn, IconButton, Kbd, Path } from "../../ui/index.ts";
+import { Button, cn, Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton, Input, Kbd, Path } from "../../ui/index.ts";
+import { STAGE_PATTERN } from "../../run.ts";
 import { Megamenu } from "./megamenu.tsx";
+import { RunMenu } from "./run-controls.tsx";
 import { setTheme, storedTheme, type ThemeChoice } from "./theme.ts";
 import { StageContext, useRefresh, useStack } from "./use-stack.ts";
 
@@ -27,44 +29,96 @@ function NavLabel({ children }: { children: ReactNode }) {
   return <span className="hidden md:inline">{children}</span>;
 }
 
+/** Picks a stage that has no state yet; it exists once something runs on it. */
+function NewStageDialog({ open, onOpenChange, stages, onPick }: { open: boolean, onOpenChange: (open: boolean) => void, stages: string[], onPick: (stage: string) => void }) {
+  const [name, setName] = useState("");
+  useEffect(() => {
+    if(open) setName("");
+  }, [open]);
+  const valid = STAGE_PATTERN.test(name);
+  const exists = stages.includes(name);
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[min(420px,calc(100vw-32px))]">
+        <DialogTitle>New stage</DialogTitle>
+        <DialogDescription>A stage is a separate copy of the stack, such as a preview for a branch. It is created when you first deploy or run dev on it.</DialogDescription>
+        <form
+          onSubmit={event => {
+            event.preventDefault();
+            if(!valid) return;
+            onPick(name);
+            onOpenChange(false);
+          }}
+          className="contents"
+        >
+          <DialogBody>
+            <label className="flex flex-col gap-1.5 text-[13px] text-fg-muted">
+              <span>Stage name</span>
+              <Input value={name} onChange={event => setName(event.target.value)} placeholder="pr-42" autoComplete="off" spellCheck={false} autoFocus className="font-mono" />
+              <span className="min-h-4 text-xs text-fg-subtle">
+                {name && !valid ? "Letters, numbers, '-' and '_'." : exists ? "This stage already exists; this switches to it." : ""}
+              </span>
+            </label>
+          </DialogBody>
+          <DialogFooter>
+            <Button type="button" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="submit" variant="primary" disabled={!valid}>{exists ? "Switch" : "Use stage"}</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function ProjectSwitcher() {
   const { data } = useStack();
   const { setStage } = useContext(StageContext);
   const refresh = useRefresh();
+  const [newStageOpen, setNewStageOpen] = useState(false);
   const stack = data?.stack;
   if(!stack) return null;
+  // A stage picked but not yet created has no state, so the store doesn't list it.
+  const stages = stack.stages.includes(stack.stage) ? stack.stages : [...stack.stages, stack.stage];
   return (
-    <Menu>
-      <MenuTrigger className="flex h-8 min-w-0 items-center gap-1.5 rounded-md px-2 text-[13px] transition-colors duration-150 ease-out outline-offset-[-2px] hover:bg-hover data-open:bg-hover">
-        <span className="truncate font-medium">{stack.name}</span>
-        <span className="hidden text-fg-subtle sm:inline">/</span>
-        <span className="hidden truncate font-mono text-xs text-fg-muted sm:inline">{stack.stage}</span>
-        <ChevronsUpDown className="size-3.5 shrink-0 text-fg-subtle" />
-      </MenuTrigger>
-      <MenuContent align="start" sideOffset={6} className={popup}>
-        <div className="flex flex-col gap-0.5 px-2 pt-1.5 pb-2">
-          <div className="font-medium">{stack.name}</div>
-          <Path path={stack.root} home={stack.home} className="max-w-80 text-[11px] text-fg-subtle" />
-        </div>
-        <MenuSeparator className="my-1 h-px bg-line" />
-        <MenuRadioGroup value={stack.stage} onValueChange={value => setStage(String(value))}>
-          <MenuGroupLabel className={groupLabel}>Stages</MenuGroupLabel>
-          {stack.stages.map(stage => (
-            <MenuRadioItem key={stage} value={stage} className={menuItem}>
-              <span className="flex-1 font-mono text-xs">{stage}</span>
-              <MenuItemIndicator className="text-accent">
-                <Check />
-              </MenuItemIndicator>
-            </MenuRadioItem>
-          ))}
-        </MenuRadioGroup>
-        <MenuSeparator className="my-1 h-px bg-line" />
-        <MenuItem value="refresh" onSelect={() => refresh()} className={menuItem}>
-          <RefreshCw className="text-fg-subtle" />
-          Re-read state
-        </MenuItem>
-      </MenuContent>
-    </Menu>
+    <>
+      <Menu>
+        <MenuTrigger className="flex h-8 min-w-0 items-center gap-1.5 rounded-md px-2 text-[13px] transition-colors duration-150 ease-out outline-offset-[-2px] hover:bg-hover data-open:bg-hover">
+          <span className="truncate font-medium">{stack.name}</span>
+          <span className="hidden text-fg-subtle sm:inline">/</span>
+          <span className="hidden truncate font-mono text-xs text-fg-muted sm:inline">{stack.stage}</span>
+          <ChevronsUpDown className="size-3.5 shrink-0 text-fg-subtle" />
+        </MenuTrigger>
+        <MenuContent align="start" sideOffset={6} className={popup}>
+          <div className="flex flex-col gap-0.5 px-2 pt-1.5 pb-2">
+            <div className="font-medium">{stack.name}</div>
+            <Path path={stack.root} home={stack.home} className="max-w-80 text-[11px] text-fg-subtle" />
+          </div>
+          <MenuSeparator className="my-1 h-px bg-line" />
+          <MenuRadioGroup value={stack.stage} onValueChange={value => setStage(String(value))}>
+            <MenuGroupLabel className={groupLabel}>Stages</MenuGroupLabel>
+            {stages.map(stage => (
+              <MenuRadioItem key={stage} value={stage} className={menuItem}>
+                <span className="flex-1 font-mono text-xs">{stage}</span>
+                {stage === stack.stage && stack.resources.length === 0 && <span className="text-[11px] text-fg-subtle">empty</span>}
+                <MenuItemIndicator className="text-accent">
+                  <Check />
+                </MenuItemIndicator>
+              </MenuRadioItem>
+            ))}
+          </MenuRadioGroup>
+          <MenuItem value="new-stage" onSelect={() => setNewStageOpen(true)} className={menuItem}>
+            <Plus className="text-fg-subtle" />
+            New stage…
+          </MenuItem>
+          <MenuSeparator className="my-1 h-px bg-line" />
+          <MenuItem value="refresh" onSelect={() => refresh()} className={menuItem}>
+            <RefreshCw className="text-fg-subtle" />
+            Re-read state
+          </MenuItem>
+        </MenuContent>
+      </Menu>
+      <NewStageDialog open={newStageOpen} onOpenChange={setNewStageOpen} stages={stack.stages} onPick={setStage} />
+    </>
   );
 }
 
@@ -247,6 +301,7 @@ export function TopBar({ onSearch }: { onSearch: () => void }) {
             <span className="hidden flex-1 text-left text-[13px] lg:inline">Search resources…</span>
             <span className="hidden lg:inline-flex"><Kbd>⌘K</Kbd></span>
           </button>
+          <RunMenu />
           <RefreshButton refresh={refresh} />
           <ThemeMenu />
         </div>

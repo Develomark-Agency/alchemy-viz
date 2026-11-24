@@ -1,9 +1,10 @@
 import { Command, CommandEmpty, CommandGroup, CommandGroupLabel, CommandInput, CommandItem, CommandList } from "@ui-sdk/react/command";
 import { Dialog, DialogContent, DialogTitle } from "@ui-sdk/react/dialog";
 import { useNavigate } from "@tanstack/react-router";
-import { Activity, LayoutGrid, ScrollText, Search } from "lucide-react";
+import { Activity, LayoutGrid, Play, Rocket, ScrollText, Search, Square, Trash2 } from "lucide-react";
 import { useEffect } from "react";
 import { ResourceIcon } from "./resource-icon.tsx";
+import { useRun } from "./run-controls.tsx";
 import { typeLabel } from "./type-label.ts";
 import { useStack } from "./use-stack.ts";
 
@@ -14,6 +15,7 @@ const groupLabel = "px-2.5 pt-2 pb-1 text-[11px] font-medium text-fg-subtle";
 export function CommandPalette({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void }) {
   const { data } = useStack();
   const navigate = useNavigate();
+  const run = useRun();
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -30,6 +32,8 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean, onOpenCh
     onOpenChange(false);
     if(value === "page:overview") navigate({ to: "/" });
     else if(value === "page:logs") navigate({ to: "/logs" });
+    else if(value === "run:stop") run.stop();
+    else if(value.startsWith("run:")) run.request(value.slice(4) as "dev" | "deploy" | "destroy");
     else if(value.startsWith("custom:")) navigate({ to: "/pages/$", params: { _splat: value.slice(7) } });
     else if(value.startsWith("resource:")) navigate({ to: "/r/$fqn", params: { fqn: value.slice(9) } });
   }
@@ -62,6 +66,36 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean, onOpenCh
                 </CommandItem>
               ))}
             </CommandGroup>
+            {run.stage && (run.owned?.stage === run.stage || !run.blocked("dev") || !run.blocked("deploy") || !run.blocked("destroy")) && (
+              <CommandGroup>
+                <CommandGroupLabel className={groupLabel}>Run on {run.stage}</CommandGroupLabel>
+                {run.owned?.stage === run.stage
+                  ? (
+                    <CommandItem value="run:stop" label={`Stop ${run.owned.command}`} keywords={["run", "stop", "kill"]} className={item}>
+                      <Square />
+                      Stop {run.owned.command}
+                    </CommandItem>
+                  )
+                  : !run.blocked("dev") && (
+                    <CommandItem value="run:dev" label="Start dev" keywords={["run", "alchemy", "local"]} className={item}>
+                      <Play />
+                      Start dev
+                    </CommandItem>
+                  )}
+                {!run.blocked("deploy") && (
+                  <CommandItem value="run:deploy" label="Deploy" keywords={["run", "alchemy", "ship", "apply"]} className={item}>
+                    <Rocket />
+                    Deploy…
+                  </CommandItem>
+                )}
+                {!run.blocked("destroy") && (
+                  <CommandItem value="run:destroy" label="Destroy" keywords={["run", "alchemy", "delete", "teardown"]} className={item}>
+                    <Trash2 />
+                    Destroy…
+                  </CommandItem>
+                )}
+              </CommandGroup>
+            )}
             <CommandGroup>
               <CommandGroupLabel className={groupLabel}>Resources</CommandGroupLabel>
               {data?.stack.resources.map(r => (

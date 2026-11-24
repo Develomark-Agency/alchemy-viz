@@ -2,6 +2,7 @@ import { Outlet, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
 import { Banner, EmptyState, Loading } from "../../ui/index.ts";
 import { CommandPalette } from "./command-palette.tsx";
+import { RunProvider } from "./run-controls.tsx";
 import { TopBar } from "./top-bar.tsx";
 import { StageContext, useStack } from "./use-stack.ts";
 
@@ -9,7 +10,9 @@ export function Shell() {
   const [stage, setStage] = useState<string>();
   return (
     <StageContext.Provider value={{ stage, setStage }}>
-      <Layout />
+      <RunProvider>
+        <Layout />
+      </RunProvider>
     </StageContext.Provider>
   );
 }
