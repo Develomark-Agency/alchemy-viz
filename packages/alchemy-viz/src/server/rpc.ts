@@ -8,9 +8,16 @@ import { statSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { type HandlerContext, parseInput, type ServerDefinition } from "./define.ts";
 
+const loaded = new Map<string, number>();
+
 export async function loadServerModule(file: string): Promise<ServerDefinition> {
+  // Bun caches modules by path and ignores a `?v=` query, so a changed file
+  // is dropped from the cache before it's imported again. Only the server
+  // module itself reloads; modules it imports keep their first version.
   const version = statSync(file).mtimeMs;
-  const mod = await import(`${pathToFileURL(file).href}?v=${version}`);
+  if(loaded.has(file) && loaded.get(file) !== version) delete require.cache[file];
+  loaded.set(file, version);
+  const mod = await import(pathToFileURL(file).href);
   const def = mod.default;
   if(!def || def.__alchemyViz !== "server") {
     throw new Error(`${file} must \`export default defineServer({...})\` from "alchemy-viz/server".`);
