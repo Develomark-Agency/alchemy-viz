@@ -13,6 +13,10 @@ function file(path: string) {
   return new URL(path, import.meta.url);
 }
 
+function bindsSendEmail(worker: ResourceInfo) {
+  return worker.bindings.some(b => ((b.data as { bindings?: Array<{ type?: string }> })?.bindings ?? []).some(x => x.type === "send_email"));
+}
+
 function isLocal(r: ResourceInfo) {
   // The data views talk to bindings, which need the resource's local id.
   if(localSpec(r) !== undefined) return true;
@@ -77,6 +81,13 @@ export function cloudflare() {
         server: file("./durable-objects/server.ts"),
         view: file("./durable-objects/view.tsx"),
         when: r => namespacesOf(r).length > 0
+      },
+      {
+        type: "Cloudflare.Worker",
+        title: "Sent email",
+        server: file("./email/server.ts"),
+        view: file("./email/view.tsx"),
+        when: bindsSendEmail
       }
     ],
     link: dashboardLink,
