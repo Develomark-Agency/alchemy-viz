@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Braces } from "lucide-react";
+import { Braces, ChevronUp, Layers, type LucideIcon } from "lucide-react";
 import { type CSSProperties, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ResourceInfo, StackInfo } from "../../types.ts";
 import { cn, EmptyState, JsonInspector, Loading, Page, Panel, Path } from "../../ui/index.ts";
@@ -9,11 +9,10 @@ import { ResourceIcon } from "./resource-icon.tsx";
 import { typeLabel } from "./type-label.ts";
 import { useStack } from "./use-stack.ts";
 
-// From this width the title, resource list and stack output float over the graph;
-// below it they stack around it and the page scrolls.
+// From this width the graph is the page, edge to edge under the bar; below it, it is a block in a padded page.
 const WIDE = "(min-width: 1024px)";
-/** Where the graph's free area starts when the left panel floats over it: its left margin, its width, and a gap. */
-const LEFT_PANEL_INSET = 24 + 312 + 24;
+/** Where the graph's free area starts when the resource list is open over its left side: the list's margin, its width, and a gap. */
+const LIST_INSET = 24 + 296 + 24;
 
 function useWide() {
   return useSyncExternalStore(
@@ -82,7 +81,7 @@ const TIP_MARK_ABOVE = 1 + 2 + 8;
  * Every resource, with one tooltip shared by all rows. Hovering a row opens it (after a beat) over that row's
  * provider mark; moving to another row slides it there and morphs its label, instead of opening a new one.
  */
-function ResourceList({ resources, empty }: { resources: ResourceInfo[], empty: string }) {
+function ResourceList({ resources, empty, onHighlight }: { resources: ResourceInfo[], empty: string, /** Called with the fqn of the row the pointer or focus is on, and with nothing when it leaves. */ onHighlight: (fqn: string | undefined) => void }) {
   const [tip, setTip] = useState<ListTip>();
   const [open, setOpen] = useState(false);
   // Whether the last change moved an open tooltip (it slides) or opened a closed one (it appears in place).
@@ -106,6 +105,7 @@ function ResourceList({ resources, empty }: { resources: ResourceInfo[], empty: 
   }
 
   function onHover(row: HTMLElement | null, r: ResourceInfo) {
+    onHighlight(row ? r.fqn : undefined);
     const provider = providerOf(r.type);
     const mark = row?.querySelector("[data-provider-mark]");
     if(!row || !provider || !mark) return hide();
@@ -137,7 +137,7 @@ function ResourceList({ resources, empty }: { resources: ResourceInfo[], empty: 
     <nav
       aria-label="Resources"
       onScroll={hide}
-      className="flex max-h-72 min-h-0 flex-col overflow-y-auto overscroll-contain px-[6px] pb-[6px] [scrollbar-width:thin] lg:max-h-none"
+      className="flex min-h-0 flex-col overflow-y-auto overscroll-contain px-[6px] pb-[6px] [scrollbar-width:thin]"
     >
       {resources.length > 0
         ? resources.map(r => <ResourceRow key={r.fqn} r={r} onHover={onHover} />)
@@ -183,29 +183,40 @@ function Stat({ count, label, dot }: { count: number, label: string, dot?: strin
   );
 }
 
-/** The stack's identity, its counts, and every resource, filterable. */
-function ResourcesPanel({ stack }: { stack: StackInfo }) {
-  const [filter, setFilter] = useState<Filter>("all");
+/** The stack's identity and counts: all the chrome the graph needs in its corner. */
+function StackChip({ stack }: { stack: StackInfo }) {
   const { resources } = stack;
   const local = resources.filter(r => r.mode === "local").length;
   const failed = resources.filter(isFailed).length;
+  return (
+    <header
+      title={stack.root}
+      className="absolute top-[12px] left-[12px] z-10 flex max-w-[calc(100%-24px)] flex-col gap-1.5 rounded-[10px] border border-line bg-surface px-[16px] py-[12px] lg:top-[24px] lg:left-[24px]"
+    >
+      <div className="flex min-w-0 items-baseline gap-2.5">
+        <h1 className="truncate text-[16px] leading-5 font-medium tracking-[-0.01em]">{stack.name}</h1>
+        <span className="shrink-0 font-mono text-[11px] text-fg-subtle">{stack.stage}</span>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <Stat count={resources.length} label="resources" />
+        <Stat count={local} label="local" dot="bg-ok" />
+        {failed > 0 && <Stat count={failed} label="failed" dot="bg-danger" />}
+      </div>
+    </header>
+  );
+}
+
+/** Every resource, filterable. Pointing at one lights it up in the graph. */
+function ResourcesPopover({ resources, onHighlight }: { resources: ResourceInfo[], onHighlight: (fqn: string | undefined) => void }) {
+  const [filter, setFilter] = useState<Filter>("all");
   const shown = resources.filter(r => filter === "all" || r.mode === filter);
   return (
-    <aside className="flex min-h-0 flex-col overflow-clip rounded-[10px] border border-line bg-surface lg:absolute lg:top-[24px] lg:left-[24px] lg:z-10 lg:max-h-[calc(100%-48px)] lg:w-[312px]">
-      <header className="flex flex-col gap-2.5 px-[12px] pt-[16px] pb-[16px]">
-        <h1 className="truncate text-[26px] leading-8 font-medium tracking-[-0.025em]">{stack.name}</h1>
-        <p className="flex min-w-0 items-center gap-2 text-[13px] text-fg-muted">
-          <span className="shrink-0 font-mono text-xs">{stack.stage}</span>
-          <span className="shrink-0 text-line-strong">/</span>
-          <Path path={stack.root} home={stack.home} className="min-w-0" />
-        </p>
-        <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
-          <Stat count={resources.length} label="resources" />
-          <Stat count={local} label="local" dot="bg-ok" />
-          {failed > 0 && <Stat count={failed} label="failed" dot="bg-danger" />}
-        </div>
-      </header>
-      <div className="flex gap-1.5 border-t border-line px-[12px] pt-[12px] pb-[6px]">
+    <section
+      data-dock=""
+      aria-label="Resources"
+      className="absolute bottom-[58px] left-[12px] z-10 flex max-h-[calc(100%-168px)] w-[296px] max-w-[calc(100%-24px)] animate-in flex-col overflow-clip rounded-[10px] border border-line bg-surface shadow-popup duration-150 ease-out fade-in slide-in-from-bottom-1 lg:bottom-[66px] lg:left-[24px]"
+    >
+      <div className="flex gap-1.5 px-[12px] pt-[12px] pb-[6px]">
         {filters.map(f => (
           <button
             key={f.id}
@@ -218,8 +229,28 @@ function ResourcesPanel({ stack }: { stack: StackInfo }) {
           </button>
         ))}
       </div>
-      <ResourceList key={filter} resources={shown} empty={`Nothing ${filter === "local" ? "running locally" : "in the cloud"}.`} />
-    </aside>
+      <ResourceList key={filter} resources={shown} onHighlight={onHighlight} empty={`Nothing ${filter === "local" ? "running locally" : "in the cloud"}.`} />
+    </section>
+  );
+}
+
+function DockButton({ icon: Icon, label, count, open, onClick }: { icon: LucideIcon, label: string, count: number, open: boolean, onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      data-dock=""
+      aria-expanded={open}
+      onClick={onClick}
+      className={cn(
+        "flex h-[34px] items-center gap-2 rounded-full border pr-[10px] pl-[12px] text-xs font-medium shadow-popup transition-colors",
+        open ? "border-line-strong bg-surface-2 text-fg" : "border-line bg-surface text-fg-muted hover:bg-hover hover:text-fg"
+      )}
+    >
+      <Icon className="size-[14px] shrink-0" strokeWidth={1.75} />
+      <span className="text-fg">{label}</span>
+      <span className="font-mono text-[11px] text-fg-subtle tabular-nums">{count}</span>
+      <ChevronUp className={cn("size-[14px] shrink-0 text-fg-subtle transition-transform", open && "rotate-180")} strokeWidth={1.75} />
+    </button>
   );
 }
 
@@ -235,7 +266,11 @@ function OutputValue({ value, home }: { value: unknown, home: string }) {
 
 function OutputPanel({ output, home }: { output: Array<[string, unknown]>, home: string }) {
   return (
-    <section className="flex max-h-[calc(100%-48px)] flex-col gap-[12px] overflow-y-auto overscroll-contain rounded-[10px] border border-line bg-surface p-[12px] lg:absolute lg:right-[24px] lg:bottom-[24px] lg:z-10 lg:w-[360px]">
+    <section
+      data-dock=""
+      aria-label="Stack output"
+      className="absolute bottom-[58px] left-[12px] z-10 flex max-h-[calc(100%-168px)] w-[360px] max-w-[calc(100%-24px)] animate-in flex-col gap-[12px] overflow-y-auto overscroll-contain rounded-[10px] border border-line bg-surface p-[12px] shadow-popup duration-150 ease-out fade-in slide-in-from-bottom-1 lg:bottom-[66px] lg:left-[24px]"
+    >
       <h2 className="flex items-center gap-2 text-[13px] font-medium">
         <Braces className="size-3.5 text-fg-subtle" strokeWidth={1.75} />
         Stack output
@@ -259,7 +294,33 @@ export function OverviewPage() {
   // The graph fills the page, so wait for its layout: it paints finished instead of popping in.
   const layout = useGraphLayout(stack.resources);
   const wide = useWide();
+  const [panel, setPanel] = useState<"resources" | "output">();
+  // The resource the list is pointing at; the graph lights it up and keeps it in view.
+  const [highlight, setHighlight] = useState<string>();
   const output = stack.output && typeof stack.output === "object" && !Array.isArray(stack.output) ? Object.entries(stack.output) : undefined;
+  const hasOutput = !!output && output.length > 0;
+
+  // Whichever popover is open closes on Escape or a click anywhere else.
+  useEffect(() => {
+    if(!panel) return;
+    function onKey(event: KeyboardEvent) {
+      if(event.key === "Escape") setPanel(undefined);
+    }
+    function onPointer(event: PointerEvent) {
+      if(!(event.target as Element).closest("[data-dock]")) setPanel(undefined);
+    }
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onPointer);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onPointer);
+    };
+  }, [panel]);
+
+  // A popover that closes under the pointer never sees it leave.
+  useEffect(() => {
+    if(panel !== "resources") setHighlight(undefined);
+  }, [panel]);
 
   if(stack.resources.length === 0) {
     return (
@@ -276,14 +337,23 @@ export function OverviewPage() {
   }
   if(!layout) return <div className="px-4 py-5 sm:px-8 sm:py-7"><Loading /></div>;
 
+  function toggle(next: "resources" | "output") {
+    setPanel(current => current === next ? undefined : next);
+  }
+
   return (
-    // Wide: the graph is the page, edge to edge under the bar, with panels floating over it.
-    <div className="relative flex h-full flex-col gap-4 max-lg:p-4 lg:block">
-      <ResourcesPanel stack={stack} />
-      <div className="h-[65dvh] min-h-[420px] max-lg:overflow-clip max-lg:rounded-[10px] max-lg:border max-lg:border-line lg:absolute lg:inset-0 lg:h-auto">
-        <Graph resources={stack.resources} layout={layout} leftInset={wide ? LEFT_PANEL_INSET : 0} />
+    // The graph is the page, edge to edge under the bar. Everything else is a small control floating over it.
+    <div className="relative h-full max-lg:p-4">
+      <div className="relative h-[75dvh] min-h-[480px] max-lg:overflow-clip max-lg:rounded-[10px] max-lg:border max-lg:border-line lg:absolute lg:inset-0 lg:h-auto lg:min-h-0">
+        <Graph resources={stack.resources} layout={layout} leftInset={wide && panel === "resources" ? LIST_INSET : 0} highlight={highlight} />
+        <StackChip stack={stack} />
+        {panel === "resources" && <ResourcesPopover resources={stack.resources} onHighlight={setHighlight} />}
+        {panel === "output" && output && <OutputPanel output={output} home={stack.home} />}
+        <div className="absolute bottom-[12px] left-[12px] z-10 flex gap-2 lg:bottom-[24px] lg:left-[24px]">
+          <DockButton icon={Layers} label="Resources" count={stack.resources.length} open={panel === "resources"} onClick={() => toggle("resources")} />
+          {hasOutput && <DockButton icon={Braces} label="Stack output" count={output.length} open={panel === "output"} onClick={() => toggle("output")} />}
+        </div>
       </div>
-      {output && output.length > 0 && <OutputPanel output={output} home={stack.home} />}
     </div>
   );
 }

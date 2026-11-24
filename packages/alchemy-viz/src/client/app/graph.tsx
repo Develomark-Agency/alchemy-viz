@@ -4,9 +4,9 @@
  */
 import { keepPreviousData, queryOptions, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { Background, BackgroundVariant, Controls, type Edge, type FitViewOptions, Handle, MarkerType, type Node, type NodeProps, Position, ReactFlow } from "@xyflow/react";
+import { Background, BackgroundVariant, Controls, type Edge, type FitViewOptions, Handle, MarkerType, type Node, type NodeProps, Position, ReactFlow, useReactFlow } from "@xyflow/react";
 import ELK from "elkjs/lib/elk.bundled.js";
-import { useMemo, useState } from "react";
+import { createContext, type RefObject, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ResourceInfo } from "../../types.ts";
 import { cn } from "../../ui/index.ts";
 import { ProviderTip } from "./providers.tsx";
@@ -28,12 +28,55 @@ function fitViewOptions(leftInset: number): FitViewOptions<ResourceNode> {
 
 type ResourceNode = Node<{ resource: ResourceInfo }, "resource">;
 
+/** The resource something outside the graph (the overview's list) is pointing at; its node lights up. */
+const HighlightContext = createContext<string | undefined>(undefined);
+
+/** Room kept between a revealed node and the edge of the view. */
+const REVEAL_MARGIN = 24;
+
+/** How far to move a span so it sits inside [min, max]; it favors keeping the start in view. */
+function shift(start: number, end: number, min: number, max: number) {
+  if(start < min) return min - start;
+  if(end > max) return Math.max(max - end, min - start);
+  return 0;
+}
+
+/**
+ * Brings the highlighted node into view by panning, only as far as needed and only when it isn't already
+ * visible. `leftInset` is the width of whatever floats over the graph's left side. It waits a beat, so
+ * sweeping the pointer down a list doesn't chase every row it crosses.
+ */
+function Reveal({ fqn, positions, leftInset, frame }: { fqn?: string, positions: GraphLayout["positions"], leftInset: number, /** The element the graph fills, for its size. */ frame: RefObject<HTMLElement | null> }) {
+  const { getViewport, setViewport } = useReactFlow();
+  useEffect(() => {
+    const at = fqn ? positions[fqn] : undefined;
+    if(!at) return;
+    const timer = window.setTimeout(() => {
+      const { clientWidth: width = 0, clientHeight: height = 0 } = frame.current ?? {};
+      const { x, y, zoom } = getViewport();
+      const left = at.x * zoom + x;
+      const top = at.y * zoom + y;
+      const dx = shift(left, left + NODE_W * zoom, leftInset + REVEAL_MARGIN, width - REVEAL_MARGIN);
+      const dy = shift(top, top + NODE_H * zoom, REVEAL_MARGIN, height - REVEAL_MARGIN);
+      if(dx || dy) void setViewport({ x: x + dx, y: y + dy, zoom }, { duration: 250 });
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [fqn, positions, leftInset, frame, getViewport, setViewport]);
+  return null;
+}
+
 function ResourceNodeView({ data }: NodeProps<ResourceNode>) {
   const r = data.resource;
   const failed = /fail|error/i.test(r.status);
   const blocked = failed && !!r.failedBy;
+  const lit = useContext(HighlightContext) === r.fqn;
   return (
-    <ProviderTip type={r.type} render={<div className={cn("flex h-full w-full cursor-pointer items-center gap-2.5 rounded-lg border px-3 transition-colors", failed ? cn("bg-danger-soft/50 hover:border-danger", blocked ? "border-dashed border-danger/30" : "border-danger/40") : "border-line-strong bg-surface hover:border-fg")} />}>
+    <ProviderTip type={r.type} render={<div className={cn(
+      "flex h-full w-full cursor-pointer items-center gap-2.5 rounded-lg border px-3 transition-[border-color,box-shadow]",
+      failed ? cn("bg-danger-soft/50 hover:border-danger", blocked ? "border-dashed border-danger/30" : "border-danger/40") : "border-line-strong bg-surface hover:border-fg",
+      // A ring as well as the border, so a node reads as picked out even among failed (red-bordered) ones.
+      lit && (failed ? "border-danger shadow-[0_0_0_3px_color-mix(in_srgb,var(--av-danger)_20%,transparent)]" : "border-fg shadow-[0_0_0_3px_color-mix(in_srgb,var(--av-fg)_14%,transparent)]")
+    )} />}>
       <Handle type="target" position={Position.Left} className="!size-1.5 !min-h-0 !min-w-0 !border-0 !bg-line-strong" />
       <ResourceIcon type={r.type} size={26} />
       <div className="min-w-0">
@@ -121,8 +164,9 @@ export function useGraphLayout(resources: ResourceInfo[]) {
 }
 
 /** Fills its parent: size the parent, and the graph is fitted into whatever room it has. */
-export function Graph({ resources, layout, leftInset = 0 }: { resources: ResourceInfo[], layout: GraphLayout, leftInset?: number }) {
+export function Graph({ resources, layout, leftInset = 0, highlight }: { resources: ResourceInfo[], layout: GraphLayout, leftInset?: number, /** The fqn of a resource to light up and keep in view. */ highlight?: string }) {
   const navigate = useNavigate();
+  const frame = useRef<HTMLDivElement>(null);
   const fitOptions = useMemo(() => fitViewOptions(leftInset), [leftInset]);
   // The layout last fitted to the view; the graph stays hidden until it matches.
   const [fitted, setFitted] = useState<string>();
@@ -145,31 +189,34 @@ export function Graph({ resources, layout, leftInset = 0 }: { resources: Resourc
   );
 
   return (
-    <div className="h-full [&_.react-flow\_\_attribution]:bg-transparent [&_.react-flow\_\_attribution_a]:text-fg-subtle [&_.react-flow\_\_controls]:overflow-hidden [&_.react-flow\_\_controls]:rounded-md [&_.react-flow\_\_controls]:border [&_.react-flow\_\_controls]:border-line [&_.react-flow\_\_controls-button]:border-line [&_.react-flow\_\_controls-button]:bg-surface [&_.react-flow\_\_controls-button]:fill-fg-muted [&_.react-flow\_\_controls-button:hover]:bg-hover">
-      <ReactFlow
-        className={fitted === shape ? "animate-in fade-in duration-300 ease-out" : "opacity-0"}
-        key={shape}
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        minZoom={0.3}
-        maxZoom={1.5}
-        nodesConnectable={false}
-        nodesDraggable={false}
-        elementsSelectable={false}
-        zoomOnScroll={false}
-        preventScrolling={false}
-        onNodeClick={(_, node) => navigate({ to: "/r/$fqn", params: { fqn: node.id } })}
-        // React Flow's own first fit (the `fitView` prop, or fitView() in
-        // onInit) runs before it knows the container's size and drops the
-        // padding, so fit one frame later and show the graph once framed.
-        onInit={i => requestAnimationFrame(() => void i.fitView(fitOptions).then(() => setFitted(shape)))}
-        attributionPosition="bottom-center"
-        aria-label="Resource dependency graph"
-      >
-        <Background variant={BackgroundVariant.Dots} gap={24} size={2} color="var(--av-line)" />
-        <Controls showInteractive={false} orientation="horizontal" fitViewOptions={fitOptions} position="top-right" style={{ margin: 24 }} />
-      </ReactFlow>
-    </div>
+    <HighlightContext.Provider value={highlight}>
+      <div ref={frame} className="h-full [&_.react-flow\_\_attribution]:bg-transparent [&_.react-flow\_\_attribution_a]:text-fg-subtle [&_.react-flow\_\_controls]:overflow-hidden [&_.react-flow\_\_controls]:rounded-md [&_.react-flow\_\_controls]:border [&_.react-flow\_\_controls]:border-line [&_.react-flow\_\_controls-button]:border-line [&_.react-flow\_\_controls-button]:bg-surface [&_.react-flow\_\_controls-button]:fill-fg-muted [&_.react-flow\_\_controls-button:hover]:bg-hover">
+        <ReactFlow
+          className={fitted === shape ? "animate-in fade-in duration-300 ease-out" : "opacity-0"}
+          key={shape}
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          minZoom={0.3}
+          maxZoom={1.5}
+          nodesConnectable={false}
+          nodesDraggable={false}
+          elementsSelectable={false}
+          zoomOnScroll={false}
+          preventScrolling={false}
+          onNodeClick={(_, node) => navigate({ to: "/r/$fqn", params: { fqn: node.id } })}
+          // React Flow's own first fit (the `fitView` prop, or fitView() in
+          // onInit) runs before it knows the container's size and drops the
+          // padding, so fit one frame later and show the graph once framed.
+          onInit={i => requestAnimationFrame(() => void i.fitView(fitOptions).then(() => setFitted(shape)))}
+          attributionPosition="bottom-center"
+          aria-label="Resource dependency graph"
+        >
+          <Background variant={BackgroundVariant.Dots} gap={24} size={2} color="var(--av-line)" />
+          <Controls showInteractive={false} orientation="horizontal" fitViewOptions={fitOptions} position="top-right" style={{ margin: 24 }} />
+          <Reveal fqn={highlight} positions={positions} leftInset={leftInset} frame={frame} />
+        </ReactFlow>
+      </div>
+    </HighlightContext.Provider>
   );
 }
