@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { type ReactNode, useState, useSyncExternalStore } from "react";
+import { Braces } from "lucide-react";
+import { useState, useSyncExternalStore } from "react";
 import type { ResourceInfo, StackInfo } from "../../types.ts";
 import { cn, EmptyState, JsonInspector, Loading, Page, Panel, Path } from "../../ui/index.ts";
 import { Graph, useGraphLayout } from "./graph.tsx";
@@ -34,7 +35,7 @@ function ResourceRow({ r }: { r: ResourceInfo }) {
   return (
     <ProviderTip
       type={r.type}
-      render={<Link to="/r/$fqn" params={{ fqn: r.fqn }} className="flex h-8 items-center gap-2.5 rounded-md px-2 transition-colors duration-150 ease-out hover:bg-hover" />}
+      render={<Link to="/r/$fqn" params={{ fqn: r.fqn }} className="flex h-[32px] items-center gap-[12px] rounded-md px-[6px] transition-colors duration-150 ease-out hover:bg-hover" />}
     >
       <ResourceIcon type={r.type} size={20} />
       <span className="truncate text-[13px] font-medium">{r.fqn}</span>
@@ -72,8 +73,8 @@ function ResourcesPanel({ stack }: { stack: StackInfo }) {
   const failed = resources.filter(isFailed).length;
   const shown = resources.filter(r => filter === "all" || r.mode === filter);
   return (
-    <aside className="flex min-h-0 flex-col overflow-clip rounded-[10px] border border-line bg-surface lg:absolute lg:top-6 lg:left-6 lg:z-10 lg:max-h-[calc(100%-48px)] lg:w-78">
-      <header className="flex flex-col gap-2.5 px-5 pt-5 pb-4">
+    <aside className="flex min-h-0 flex-col overflow-clip rounded-[10px] border border-line bg-surface lg:absolute lg:top-[24px] lg:left-[24px] lg:z-10 lg:max-h-[calc(100%-48px)] lg:w-[312px]">
+      <header className="flex flex-col gap-2.5 px-[12px] pt-[16px] pb-[16px]">
         <h1 className="truncate text-[26px] leading-8 font-medium tracking-[-0.025em]">{stack.name}</h1>
         <p className="flex min-w-0 items-center gap-2 text-[13px] text-fg-muted">
           <span className="shrink-0 font-mono text-xs">{stack.stage}</span>
@@ -86,7 +87,7 @@ function ResourcesPanel({ stack }: { stack: StackInfo }) {
           {failed > 0 && <Stat count={failed} label="failed" dot="bg-danger" />}
         </div>
       </header>
-      <div className="flex gap-1.5 border-t border-line px-3 pt-3 pb-2">
+      <div className="flex gap-1.5 border-t border-line px-[12px] pt-[12px] pb-[6px]">
         {filters.map(f => (
           <button
             key={f.id}
@@ -99,21 +100,12 @@ function ResourcesPanel({ stack }: { stack: StackInfo }) {
           </button>
         ))}
       </div>
-      <nav aria-label="Resources" className="flex max-h-72 min-h-0 flex-col overflow-y-auto overscroll-contain px-1.5 pb-1.5 lg:max-h-none">
+      <nav aria-label="Resources" className="flex max-h-72 min-h-0 flex-col overflow-y-auto overscroll-contain px-[6px] pb-[6px] lg:max-h-none">
         {shown.length > 0
           ? shown.map(r => <ResourceRow key={r.fqn} r={r} />)
           : <p className="px-2 py-3 text-[13px] text-fg-subtle">Nothing {filter === "local" ? "running locally" : "in the cloud"}.</p>}
       </nav>
     </aside>
-  );
-}
-
-function Section({ title, children }: { title: string, children: ReactNode }) {
-  return (
-    <section className="flex flex-col gap-3">
-      <h2 className="flex items-center gap-3 text-[13px] font-medium after:h-px after:flex-1 after:bg-line">{title}</h2>
-      {children}
-    </section>
   );
 }
 
@@ -129,20 +121,22 @@ function OutputValue({ value, home }: { value: unknown, home: string }) {
 
 function OutputPanel({ output, home }: { output: Array<[string, unknown]>, home: string }) {
   return (
-    <div className="max-h-[calc(100%-48px)] overflow-y-auto overscroll-contain rounded-[10px] border border-line bg-surface p-3.5 lg:absolute lg:right-6 lg:bottom-6 lg:z-10 lg:w-90">
-      <Section title="Stack output">
-        <dl className="flex flex-col gap-2">
-          {output.map(([k, v]) => (
-            <div key={k} className="flex min-w-0 flex-col gap-1 rounded-lg border border-line bg-canvas px-3 py-2.5">
-              <dt className="font-mono text-[11px] text-fg-subtle">{k}</dt>
-              <dd className="flex min-w-0">
-                <OutputValue value={v} home={home} />
-              </dd>
-            </div>
-          ))}
-        </dl>
-      </Section>
-    </div>
+    <section className="flex max-h-[calc(100%-48px)] flex-col gap-[12px] overflow-y-auto overscroll-contain rounded-[10px] border border-line bg-surface p-[12px] lg:absolute lg:right-[24px] lg:bottom-[24px] lg:z-10 lg:w-[360px]">
+      <h2 className="flex items-center gap-2 text-[13px] font-medium">
+        <Braces className="size-3.5 text-fg-subtle" strokeWidth={1.75} />
+        Stack output
+      </h2>
+      <dl className="flex flex-col gap-[12px]">
+        {output.map(([k, v]) => (
+          <div key={k} className="flex min-w-0 flex-col gap-1">
+            <dt className="font-mono text-[11px] text-fg-subtle">{k}</dt>
+            <dd className="flex min-w-0">
+              <OutputValue value={v} home={home} />
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }
 
