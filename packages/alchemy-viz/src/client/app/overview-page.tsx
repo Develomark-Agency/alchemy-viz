@@ -34,22 +34,37 @@ function ResourceRow({ r }: { r: ResourceInfo }) {
   const failed = isFailed(r);
   const provider = providerOf(r.type);
   const tint = provider && provider.id !== "custom" ? providerColor(provider) : undefined;
+  const kind = typeLabel(r.type).name;
   return (
-    // No provider tooltip here, unlike the graph: the row already shows the provider's mark, and a tooltip
-    // trailing the pointer over a dense list covers the rows beside it and flickers as the pointer crosses them.
+    // No provider tooltip from the graph here (it trails the pointer over the rows beside it): the row has its own,
+    // anchored on the provider mark. The hover fill has no transition, so moving between rows switches at once
+    // instead of one fading out while the next fades in.
     <Link
       to="/r/$fqn"
       params={{ fqn: r.fqn }}
       // The row warms to its provider's color on hover; with no provider it uses the plain hover fill.
       style={{ "--row-tint": tint ? `color-mix(in srgb, ${tint} 9%, transparent)` : "var(--av-hover)" } as CSSProperties}
-      className="flex h-[44px] shrink-0 items-center gap-[12px] rounded-md px-[6px] transition-colors duration-150 ease-out hover:bg-(--row-tint)"
+      className="group flex h-[44px] shrink-0 items-center gap-[12px] rounded-md px-[6px] hover:bg-(--row-tint) focus-visible:bg-(--row-tint)"
     >
       <ResourceIcon type={r.type} size={32} badge={false} />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="truncate text-[13px] leading-4 font-medium">{r.fqn}</span>
         <span className="flex min-w-0 items-center gap-1.5 text-[11.5px] leading-4 text-fg-subtle">
-          {provider && <span title={provider.label} className="flex shrink-0"><ProviderMark provider={provider} size={12} /></span>}
-          <span className="truncate">{typeLabel(r.type).name}</span>
+          {provider && (
+            <span className="relative flex shrink-0">
+              <ProviderMark provider={provider} size={12} />
+              {/* Opens over the row's own mark: its mark sits exactly on this one (1px border + 6px padding in, centered). */}
+              <span
+                aria-hidden
+                className="pointer-events-none absolute top-1/2 left-[-7px] z-10 flex h-[20px] -translate-y-1/2 items-center gap-1.5 rounded-md border border-line bg-surface px-[6px] text-[12px] font-medium whitespace-nowrap text-fg opacity-0 shadow-popup transition-opacity duration-100 group-hover:opacity-100 group-hover:delay-300 group-hover:duration-150 group-focus-visible:opacity-100"
+              >
+                <ProviderMark provider={provider} size={12} />
+                {provider.label}
+                <span className="font-normal text-fg-subtle">{kind}</span>
+              </span>
+            </span>
+          )}
+          <span className="truncate">{kind}</span>
         </span>
       </span>
       <span
