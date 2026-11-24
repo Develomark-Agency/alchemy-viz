@@ -53,7 +53,7 @@ export function ViewHost({ viewId, resource, stack }: { viewId: string, resource
   const View = mod.data.component;
   return (
     <Boundary resetKey={`${viewId}:${resource.fqn}`}>
-      <View key={resource.fqn} resource={resource} stack={stack} api={makeApi({ fqn: resource.fqn }) as never} />
+      <View key={resource.fqn} resource={resource} stack={stack} api={makeApi({ fqn: resource.fqn, view: viewId }) as never} />
     </Boundary>
   );
 }

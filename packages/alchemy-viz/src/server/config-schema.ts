@@ -16,7 +16,8 @@ const view = z.object({
   type: z.union([typePattern, z.array(typePattern).min(1)]),
   server: moduleRef.optional(),
   view: moduleRef,
-  title: z.string().min(1).optional()
+  title: z.string().min(1).optional(),
+  when: fn.optional()
 });
 
 const page = z.object({

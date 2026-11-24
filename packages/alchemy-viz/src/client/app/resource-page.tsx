@@ -106,8 +106,8 @@ export function ResourcePage() {
   }
 
   const meta = data.meta[fqn];
-  const view = meta?.viewId ? views.find(v => v.id === meta.viewId) : undefined;
-  const tabs = [...(view ? [view.title] : []), "Details", "Logs"].map(t => t.toLowerCase());
+  const resourceViews = (meta?.viewIds ?? []).flatMap(id => views.filter(v => v.id === id));
+  const tabs = [...resourceViews.map(v => v.title), "Details", "Logs"].map(t => t.toLowerCase());
   const active = tab && tabs.includes(tab) ? tab : tabs[0]!;
   const label = typeLabel(resource.type);
 
@@ -145,12 +145,12 @@ export function ResourcePage() {
         onValueChange={next => next && navigate({ to: "/r/$fqn", params: { fqn }, search: prev => ({ ...prev, tab: next }), replace: true })}
       >
         <TabsList aria-label="Resource">
-          {view && <TabsTab value={view.title.toLowerCase()}>{view.title}</TabsTab>}
+          {resourceViews.map(v => <TabsTab key={v.id} value={v.title.toLowerCase()}>{v.title}</TabsTab>)}
           <TabsTab value="details">Details</TabsTab>
           <TabsTab value="logs">Logs</TabsTab>
         </TabsList>
-        {view && (
-          <TabsPanel value={view.title.toLowerCase()}>
+        {resourceViews.map(view => (
+          <TabsPanel key={view.id} value={view.title.toLowerCase()}>
             {meta?.local === false
               ? (
                 <ExternalLinkCard href={meta.link} provider={providerName(resource.type)}>
@@ -159,7 +159,7 @@ export function ResourcePage() {
               )
               : <ViewHost viewId={view.id} resource={resource} stack={data.stack} />}
           </TabsPanel>
-        )}
+        ))}
         <TabsPanel value="details">
           <Details resource={resource} resources={data.stack.resources} />
         </TabsPanel>

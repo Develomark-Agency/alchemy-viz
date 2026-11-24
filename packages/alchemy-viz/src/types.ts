@@ -49,7 +49,13 @@ export interface ViewEntry {
   /** Module whose default export is `defineView(...)`. */
   view: ModuleRef,
   /** Tab label. Defaults to "Explore". */
-  title?: string
+  title?: string,
+  /**
+   * Narrows a type match to the resources this view has something to show
+   * for (a Worker's Durable Objects tab only when it binds any). A resource
+   * can show several views; each becomes a tab, in plugin order.
+   */
+  when?(resource: ResourceInfo): boolean
 }
 
 export interface PageEntry {

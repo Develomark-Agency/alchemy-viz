@@ -8,7 +8,7 @@
 import { existsSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import type { ModuleRef, PageEntry, ViewEntry, VizConfig, VizPlugin } from "../types.ts";
+import type { ModuleRef, PageEntry, ResourceInfo, ViewEntry, VizConfig, VizPlugin } from "../types.ts";
 import { validateConfig } from "./config-schema.ts";
 
 export const CONFIG_FILES = ["alchemy-viz.config.ts", "alchemy-viz.config.js", "alchemy-viz.config.mjs"];
@@ -30,7 +30,8 @@ export interface ResolvedView {
   types: Array<string | RegExp>,
   title: string,
   server?: string,
-  view: string
+  view: string,
+  when?: (resource: ResourceInfo) => boolean
 }
 
 export interface ResolvedPage {
@@ -107,7 +108,8 @@ export async function loadConfig(options: {
         types: Array.isArray(entry.type) ? entry.type : [entry.type],
         title: entry.title ?? "Explore",
         server: entry.server ? toPath(entry.server, root, root) : undefined,
-        view: toPath(entry.view, root, root)
+        view: toPath(entry.view, root, root),
+        when: entry.when
       });
     });
     plugin.pages?.forEach((entry: PageEntry, i) => {
@@ -142,7 +144,18 @@ export async function loadConfig(options: {
   };
 }
 
-/** First view whose type pattern matches. Earlier plugins win. */
-export function viewFor(views: ResolvedView[], type: string) {
-  return views.find(v => v.types.some(t => (typeof t === "string" ? t === type : t.test(type))));
+/**
+ * Every view for a resource: its type matches and its `when`, if any,
+ * accepts it. In plugin order, so earlier plugins' tabs come first.
+ */
+export function viewsFor(views: ResolvedView[], resource: ResourceInfo) {
+  return views.filter(v => {
+    if(!v.types.some(t => (typeof t === "string" ? t === resource.type : t.test(resource.type)))) return false;
+    if(!v.when) return true;
+    try {
+      return v.when(resource);
+    } catch {
+      return false;
+    }
+  });
 }

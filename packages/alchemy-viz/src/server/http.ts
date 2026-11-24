@@ -13,7 +13,7 @@ import { createServer as createVite } from "vite";
 import type { ResourceInfo, StackInfo } from "../types.ts";
 import { type HandlerContext, InputError } from "./define.ts";
 import { readLogs } from "./logs.ts";
-import { type LoadedConfig, makeImportFromProject, viewFor } from "./project.ts";
+import { type LoadedConfig, makeImportFromProject, viewsFor } from "./project.ts";
 import { registryPlugin, tailwindSourcesPlugin } from "./registry-plugin.ts";
 import { callHandler } from "./rpc.ts";
 import { makeStackReader } from "./stack.ts";
@@ -37,13 +37,13 @@ const SHARED = [
 /** Public, JSON-safe view of the plugin set, for the shell. */
 function pluginMeta(config: LoadedConfig, stack: StackInfo) {
   return Object.fromEntries(stack.resources.map((r: ResourceInfo) => {
-    const view = viewFor(config.views, r.type);
-    const plugin = view ? config.plugins.find(p => p.name === view.plugin) : undefined;
+    const views = viewsFor(config.views, r);
+    const plugin = views[0] ? config.plugins.find(p => p.name === views[0]!.plugin) : undefined;
     // Link and locality come from the first plugin that answers, even one
     // without a view for this type.
     const link = config.plugins.map(p => safe(() => p.link?.(r))).find(Boolean);
     const local = plugin?.isLocal ? safe(() => plugin.isLocal!(r)) ?? true : true;
-    return [r.fqn, { viewId: view?.id, link, local }];
+    return [r.fqn, { viewIds: views.map(v => v.id), link, local }];
   }));
 }
 
@@ -171,14 +171,15 @@ export async function startServer(config: LoadedConfig) {
           handler: url.searchParams.get("handler"),
           input: JSON.parse(url.searchParams.get("input") ?? "null")
         };
-      const target: { fqn?: string, page?: string } = call.target ?? {};
+      const target: { fqn?: string, view?: string, page?: string } = call.target ?? {};
       const stack = await getStack();
       let file: string | undefined;
       let resource: ResourceInfo | undefined;
       if(target.fqn) {
         resource = stack.resources.find(r => r.fqn === target.fqn);
         if(!resource) return sendJson(res, 404, { error: `No resource '${target.fqn}' in stage ${stack.stage}.` });
-        file = viewFor(config.views, resource.type)?.server;
+        const views = viewsFor(config.views, resource);
+        file = (views.find(v => v.id === target.view) ?? views[0])?.server;
       } else if(target.page) {
         file = config.pages.find(p => p.id === target.page)?.server;
       }

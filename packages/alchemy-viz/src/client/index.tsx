@@ -74,7 +74,7 @@ export type Api<S> = S extends ServerDefinition<infer H>
   ? { [K in keyof H]: H[K] extends Handler ? HandlerClient<InputOf<H[K]>, OutputOf<H[K]>> : never }
   : Record<string, never>;
 
-export type RpcTarget = { fqn: string } | { page: string };
+export type RpcTarget = { fqn: string, view?: string } | { page: string };
 
 export class RpcError extends Error {
   constructor(message: string, readonly status: number) {
@@ -99,7 +99,7 @@ async function rpc(target: RpcTarget, handler: string, input: unknown) {
 }
 
 function targetKey(target: RpcTarget) {
-  return "fqn" in target ? `r:${target.fqn}` : `p:${target.page}`;
+  return "fqn" in target ? `r:${target.fqn}:${target.view ?? ""}` : `p:${target.page}`;
 }
 
 function makeHandlerClient(target: RpcTarget, name: string): HandlerClient<any, any> {

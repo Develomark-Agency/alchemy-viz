@@ -3,8 +3,8 @@ import { createContext, useCallback, useContext } from "react";
 import type { StackInfo } from "../../types.ts";
 
 export interface ResourceMeta {
-  /** Registry id of the plugin view for this resource's type. */
-  viewId?: string,
+  /** Registry ids of the plugin views for this resource, one tab each. */
+  viewIds: string[],
   /** The resource in its provider's own dashboard. */
   link?: string,
   /** False when the view can't show it here (cloud-only). */
