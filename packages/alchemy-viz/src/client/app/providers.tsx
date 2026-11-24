@@ -75,16 +75,26 @@ const tooltip = createTooltipController<TipPayload>();
 // it has already moved onto the next one.
 let closeTimer: ReturnType<typeof setTimeout> | undefined;
 
-// Where the pointer last was over a resource. The tooltip is anchored to it.
+// Where the pointer last was over a resource. The tooltip is anchored to it,
+// unless focus has since moved to a resource from the keyboard: then it sits
+// under that one, until the pointer moves again.
 const pointer = { x: 0, y: 0 };
-const pointerAnchor = { getBoundingClientRect: () => new DOMRect(pointer.x, pointer.y, 0, 0) };
+let focused: HTMLElement | null = null;
+const anchor = {
+  getBoundingClientRect: () => {
+    if(!focused?.isConnected) return new DOMRect(pointer.x, pointer.y, 0, 0);
+    // The offsets are set for a pointer; pull the bottom edge up so the gap under an item matches.
+    const r = focused.getBoundingClientRect();
+    return new DOMRect(r.left, r.top, r.width, Math.max(0, r.height - 8));
+  }
+};
 
 /** Mount once, near the root. */
 export function ProviderTooltip() {
   return (
     <Tooltip controller={tooltip} delay={350}>
       <TooltipContent<TipPayload>
-        anchor={pointerAnchor}
+        anchor={anchor}
         side="bottom"
         align="start"
         sideOffset={14}
@@ -197,8 +207,21 @@ export function ProviderTip({ type, kind, place, render, children }: { type: str
       onPointerMove={event => {
         pointer.x = event.clientX;
         pointer.y = event.clientY;
+        focused = null;
         // The tooltip only re-reads its anchor when asked, so ask on every move.
-        if(tooltip.isOpen()) void tooltip.open({ payload, anchor: pointerAnchor });
+        if(tooltip.isOpen()) void tooltip.open({ payload, anchor });
+      }}
+      onFocus={event => {
+        // A click focuses too, but the pointer is already where the tooltip should be.
+        if(!event.currentTarget.matches(":focus-visible")) return;
+        clearTimeout(closeTimer);
+        focused = event.currentTarget;
+        if(tooltip.isOpen()) void tooltip.open({ payload, anchor });
+      }}
+      onBlur={event => {
+        if(focused !== event.currentTarget) return;
+        // Moving on to another resource reopens it there; anywhere else, it closes.
+        closeTimer = setTimeout(() => tooltip.close(), 60);
       }}
     >
       {children}
