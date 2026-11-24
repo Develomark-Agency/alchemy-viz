@@ -66,6 +66,12 @@ export function cloudflare() {
         view: file("./secrets-store/view.tsx")
       },
       {
+        type: ["Cloudflare.Container", "Cloudflare.Containers.DurableObjectApplication"],
+        title: "Containers",
+        server: file("./container/server.ts"),
+        view: file("./container/view.tsx")
+      },
+      {
         type: "Cloudflare.Worker",
         title: "Durable Objects",
         server: file("./durable-objects/server.ts"),
