@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ResourceInfo, StackInfo } from "../../types.ts";
 import { AutoHeight, cn, easeOut, Kbd, SearchInput } from "../../ui/index.ts";
 import { ProviderTip } from "./providers.tsx";
+import { modeOf } from "./resource-mode.ts";
 import { ResourceIcon } from "./resource-icon.tsx";
 import { typeLabel } from "./type-label.ts";
 
@@ -30,7 +31,8 @@ function detail(r: ResourceInfo) {
   const url = r.attr?.url;
   if(typeof url === "string") return url.replace(/^https?:\/\//, "");
   if(r.fqn !== r.logicalId) return r.fqn;
-  return r.mode === "local" ? "Local simulator" : r.mode === "live" ? "Cloud" : typeLabel(r.type).name;
+  const mode = modeOf(r);
+  return mode === "local" ? "Local simulator" : mode === "live" ? "Cloud" : typeLabel(r.type).name;
 }
 
 function group(resources: ResourceInfo[]) {
@@ -84,13 +86,13 @@ export function Megamenu({ stack, onNavigate }: { stack: StackInfo, onNavigate: 
 
   const counts = {
     all: stack.resources.length,
-    local: stack.resources.filter(r => r.mode === "local").length,
-    cloud: stack.resources.filter(r => r.mode === "live").length
+    local: stack.resources.filter(r => modeOf(r) === "local").length,
+    cloud: stack.resources.filter(r => modeOf(r) === "live").length
   };
 
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const shown = stack.resources.filter(r => (scope === "all" || (scope === "local" ? r.mode === "local" : r.mode === "live"))
+    const shown = stack.resources.filter(r => (scope === "all" || (scope === "local" ? modeOf(r) === "local" : modeOf(r) === "live"))
       && (!q || `${r.fqn} ${r.type} ${typeLabel(r.type).name}`.toLowerCase().includes(q)));
     return group(shown);
   }, [stack.resources, query, scope]);
@@ -133,6 +135,7 @@ export function Megamenu({ stack, onNavigate }: { stack: StackInfo, onNavigate: 
                             <ul className="flex flex-col gap-0.5">
                               <AnimatePresence mode="popLayout" initial={false}>
                                 {resources.map(r => {
+                                  const mode = modeOf(r);
                                   const current = pathname === `/r/${encodeURIComponent(r.fqn)}` || pathname === `/r/${r.fqn}`;
                                   return (
                                     <motion.li layout="position" key={r.fqn} {...presence}>
@@ -149,12 +152,12 @@ export function Megamenu({ stack, onNavigate }: { stack: StackInfo, onNavigate: 
                                       >
                                         <span className="relative shrink-0">
                                           <ResourceIcon type={r.type} size={32} />
-                                          {r.mode && (
+                                          {mode && (
                                             <span
-                                              title={r.mode === "local" ? "Running locally" : "Cloud only"}
+                                              title={mode === "local" ? "Running locally" : "Cloud only"}
                                               className={cn(
                                                 "absolute -top-0.5 -right-0.5 size-2.5 rounded-full ring-2 ring-surface transition-[box-shadow] group-hover/item:ring-hover group-aria-[current=page]/item:ring-hover",
-                                                r.mode === "local" ? "bg-ok" : "bg-warn"
+                                                mode === "local" ? "bg-ok" : "bg-warn"
                                               )}
                                             />
                                           )}

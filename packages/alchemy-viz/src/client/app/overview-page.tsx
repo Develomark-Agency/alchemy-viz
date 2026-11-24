@@ -8,6 +8,7 @@ import { cn, EmptyState, JsonInspector, Kbd, Loading, Page, Panel, Path } from "
 import { useOpenPalette } from "./command-palette.tsx";
 import { Graph, useGraphLayout } from "./graph.tsx";
 import { ProviderMark, providerColor, providerOf, ProviderTip } from "./providers.tsx";
+import { modeOf } from "./resource-mode.ts";
 import { ResourceIcon } from "./resource-icon.tsx";
 import { typeLabel } from "./type-label.ts";
 import { useStack } from "./use-stack.ts";
@@ -37,7 +38,7 @@ function ResourceRow({ r, onHighlight }: { r: ResourceInfo, onHighlight: (fqn: s
   const provider = providerOf(r.type);
   const kind = typeLabel(r.type).name;
   const tint = provider && provider.id !== "custom" ? providerColor(provider) : undefined;
-  const status = failed ? "bg-danger" : r.mode === "local" ? "bg-ok" : undefined;
+  const status = failed ? "bg-danger" : modeOf(r) === "local" ? "bg-ok" : undefined;
   return (
     // The hover fill has no transition, so moving between rows switches at once instead of one fading out
     // while the next fades in. The tooltip is the page's shared one, trailing the pointer like the graph's.
@@ -159,7 +160,7 @@ function Stat({ count, label, dot }: { count: number, label: string, dot?: strin
 /** The stack's identity and counts: all the chrome the graph needs in its corner. */
 function StackChip({ stack }: { stack: StackInfo }) {
   const { resources } = stack;
-  const local = resources.filter(r => r.mode === "local").length;
+  const local = resources.filter(r => modeOf(r) === "local").length;
   const failed = resources.filter(isFailed).length;
   return (
     <header
@@ -200,7 +201,7 @@ function SearchField({ onClick }: { onClick: () => void }) {
  */
 function ResourcesPopover({ resources, onHighlight, onSearch }: { resources: ResourceInfo[], onHighlight: (fqn: string | undefined) => void, onSearch: () => void }) {
   const [filter, setFilter] = useState<Filter>("all");
-  const shown = resources.filter(r => filter === "all" || r.mode === filter);
+  const shown = resources.filter(r => filter === "all" || modeOf(r) === filter);
   return (
     <section
       data-dock=""

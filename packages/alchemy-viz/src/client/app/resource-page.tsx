@@ -7,6 +7,7 @@ import { LogsPanel } from "./logs-panel.tsx";
 import { ViewHost } from "./plugin-host.tsx";
 import { ProviderTip } from "./providers.tsx";
 import { ResourceIcon } from "./resource-icon.tsx";
+import { modeOf } from "./resource-mode.ts";
 import { resourceRoute } from "./router.tsx";
 import { typeLabel } from "./type-label.ts";
 import { useStack } from "./use-stack.ts";
@@ -177,12 +178,12 @@ export function ResourcePage() {
           <span title={resource.type}>{label.provider ? `${label.provider} ${label.name}` : label.name}</span>
           {resource.fqn !== resource.logicalId && <span className="font-mono text-xs text-fg-subtle">{resource.fqn}</span>}
           <span className="text-line-strong">/</span>
-          <RunsOn mode={resource.mode} />
+          <RunsOn mode={modeOf(resource)} />
           <span className="text-line-strong">/</span>
           <StatusText status={resource.status} />
         </span>
       )}
-      actions={meta?.link && resource.mode !== "local" && (
+      actions={meta?.link && modeOf(resource) !== "local" && (
         <LinkButton href={meta.link}>
           Open in {providerName(resource.type)}
           <ArrowRight />

@@ -11,6 +11,7 @@ import type { ResourceInfo } from "../../types.ts";
 import { cn } from "../../ui/index.ts";
 import { ProviderTip } from "./providers.tsx";
 import { ResourceIcon } from "./resource-icon.tsx";
+import { modeOf } from "./resource-mode.ts";
 import { typeLabel } from "./type-label.ts";
 
 const NODE_W = 212;
@@ -85,7 +86,7 @@ function ResourceNodeView({ data }: NodeProps<ResourceNode>) {
       </div>
       {failed
         ? <span className="ml-auto size-1.5 shrink-0 rounded-full bg-danger" title={blocked ? `Blocked by ${r.failedBy}` : r.error ?? "Failed"} />
-        : r.mode === "local" && <span className="ml-auto size-1.5 shrink-0 rounded-full bg-ok" title="Running locally" />}
+        : modeOf(r) === "local" && <span className="ml-auto size-1.5 shrink-0 rounded-full bg-ok" title="Running locally" />}
       <Handle type="source" position={Position.Right} className="!size-1.5 !min-h-0 !min-w-0 !border-0 !bg-line-strong" />
     </ProviderTip>
   );
