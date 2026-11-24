@@ -25,8 +25,9 @@ export function iconFor(type: string): LucideIcon {
 const BADGE_MIN = 26;
 
 /**
- * A line-drawn glyph for a resource type, faintly tinted in its provider's
- * color, with the provider's mark badged on the corner when it's big enough.
+ * A line-drawn glyph for a resource type, its border and glyph faintly tinted
+ * in its provider's color, with the provider's mark badged on the corner when
+ * it's big enough.
  * Color is reserved for the provider and for state; types with no provider
  * (and custom ones) stay neutral.
  */
@@ -46,7 +47,6 @@ export function ResourceIcon({ type, size = 20, className }: { type: string, siz
         borderRadius: Math.round(size * 0.19),
         ...tint && {
           borderColor: `color-mix(in srgb, ${tint} 28%, var(--av-line))`,
-          backgroundColor: `color-mix(in srgb, ${tint} 9%, var(--av-surface))`,
           color: `color-mix(in srgb, ${tint} 45%, var(--av-fg-muted))`
         }
       }}
