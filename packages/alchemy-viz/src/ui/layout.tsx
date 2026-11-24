@@ -98,7 +98,13 @@ export function Split({
   useLayoutEffect(() => {
     const el = ref.current;
     if(!el) return;
-    const observer = new ResizeObserver(([entry]) => setWide(entry!.contentRect.width >= leftWidth + minRight + 16));
+    function fits(width: number) {
+      return width >= leftWidth + minRight + 16;
+    }
+    // Measure now, before the first paint: the observer's first report comes
+    // a frame later, which showed the stacked layout for one frame.
+    setWide(fits(el.getBoundingClientRect().width));
+    const observer = new ResizeObserver(([entry]) => setWide(fits(entry!.contentRect.width)));
     observer.observe(el);
     return () => observer.disconnect();
   }, [leftWidth, minRight]);

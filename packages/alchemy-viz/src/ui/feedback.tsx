@@ -132,8 +132,8 @@ export function EmptyState({ title, children, action, icon }: { title: ReactNode
   return (
     <div className="flex flex-col items-center justify-center gap-1.5 px-4 py-10 text-center">
       {icon && <div className="mb-1 text-fg-subtle [&_svg]:size-5">{icon}</div>}
-      <div className="font-medium">{title}</div>
-      {children && <div className="max-w-md text-[13px] text-fg-muted">{children}</div>}
+      <div className="max-w-md font-medium text-balance">{title}</div>
+      {children && <div className="max-w-md text-[13px] text-balance text-fg-muted">{children}</div>}
       {action && <div className="mt-3">{action}</div>}
     </div>
   );

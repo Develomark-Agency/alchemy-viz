@@ -4,6 +4,7 @@ import { type Api, defineView, ResourceLink } from "../../../client/index.tsx";
 import {
   Badge,
   Button,
+  cn,
   ConfirmButton,
   CopyButton,
   Dialog,
@@ -33,8 +34,10 @@ export default defineView<typeof server>(({ api, resource }) => {
   const single = resource.type === "Cloudflare.SecretsStore.Secret";
   const [editing, setEditing] = useState<{ name: string, isNew: boolean }>();
 
+  // A short list of rows: past this width the names and their values drift
+  // apart across empty space.
   return (
-    <div className="flex flex-col gap-4">
+    <div className={cn("flex flex-col gap-4", single ? "max-w-[640px]" : "max-w-[880px]")}>
       <Panel
         title={single ? "Value" : <>Secrets {list.data && <span className="font-normal text-fg-subtle tabular-nums">{list.data.length}</span>}</>}
         actions={!single && (
