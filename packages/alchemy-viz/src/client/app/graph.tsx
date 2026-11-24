@@ -2,10 +2,11 @@
  * The stack's dependency graph: React Flow for rendering and interaction,
  * ELK's layered layout for placement (dependencies left, dependents right).
  */
+import { keepPreviousData, queryOptions, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { Background, BackgroundVariant, Controls, type Edge, Handle, MarkerType, type Node, type NodeProps, Position, ReactFlow } from "@xyflow/react";
 import ELK from "elkjs/lib/elk.bundled.js";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { ResourceInfo } from "../../types.ts";
 import { cn } from "../../ui/index.ts";
 import { ProviderTip } from "./providers.tsx";
@@ -44,62 +45,88 @@ function ResourceNodeView({ data }: NodeProps<ResourceNode>) {
 
 const nodeTypes = { resource: ResourceNodeView };
 
-export function Graph({ resources }: { resources: ResourceInfo[] }) {
+function graphEdges(resources: ResourceInfo[]): Edge[] {
+  const byFqn = new Map(resources.map(r => [r.fqn, r]));
+  return resources.flatMap(r => r.downstream.filter(d => byFqn.has(d)).map(d => {
+    // Edges a failure travelled along, from the root cause outward.
+    const traced = byFqn.get(d)!.failedBy === r.fqn;
+    const color = traced ? "var(--av-danger)" : "var(--av-fg-subtle)";
+    return {
+      id: `${r.fqn}->${d}`,
+      source: r.fqn,
+      target: d,
+      style: { stroke: color, strokeWidth: traced ? 1.5 : 1 },
+      markerEnd: { type: MarkerType.ArrowClosed, color, width: 14, height: 14 }
+    };
+  }));
+}
+
+/** What a layout depends on: the resources and how they connect, not their status. */
+function graphShape(resources: ResourceInfo[]) {
+  return JSON.stringify([resources.map(r => r.fqn), resources.flatMap(r => r.downstream.map(d => `${r.fqn}->${d}`))]);
+}
+
+export interface GraphLayout {
+  /** The shape this layout is for. */
+  shape: string,
+  positions: Record<string, { x: number, y: number }>,
+  height: number
+}
+
+async function layoutGraph(resources: ResourceInfo[]): Promise<GraphLayout> {
+  const edges = graphEdges(resources);
+  const layout = await elk.layout({
+    id: "root",
+    layoutOptions: {
+      "elk.algorithm": "layered",
+      "elk.direction": "RIGHT",
+      "elk.layered.spacing.nodeNodeBetweenLayers": "72",
+      "elk.spacing.nodeNode": "16",
+      "elk.layered.nodePlacement.strategy": "BRANDES_KOEPF"
+    },
+    children: resources.map(r => ({ id: r.fqn, width: NODE_W, height: NODE_H })),
+    edges: edges.map(e => ({ id: e.id, sources: [e.source], targets: [e.target] }))
+  });
+  return {
+    shape: graphShape(resources),
+    positions: Object.fromEntries((layout.children ?? []).map(c => [c.id, { x: c.x ?? 0, y: c.y ?? 0 }])),
+    height: (layout as { height?: number }).height ?? 0
+  };
+}
+
+/**
+ * The layout is a query so it is computed once per shape and kept: the page
+ * can wait for it before it paints (the graph's height is known up front, so
+ * nothing below it moves), and coming back to the overview has it already.
+ */
+export function graphLayoutQuery(resources: ResourceInfo[]) {
+  return queryOptions({
+    queryKey: ["graph-layout", graphShape(resources)],
+    queryFn: () => layoutGraph(resources),
+    staleTime: Infinity
+  });
+}
+
+/** The layout for these resources; undefined until it is ready. Keeps the last one while a changed graph lays out. */
+export function useGraphLayout(resources: ResourceInfo[]) {
+  const shape = useMemo(() => graphShape(resources), [resources]);
+  // oxlint-disable-next-line react-hooks/exhaustive-deps -- `shape` captures what the layout reads from `resources`
+  const options = useMemo(() => graphLayoutQuery(resources), [shape]);
+  return useQuery({ ...options, enabled: resources.length > 0, placeholderData: keepPreviousData }).data;
+}
+
+export function Graph({ resources, layout }: { resources: ResourceInfo[], layout: GraphLayout }) {
   const navigate = useNavigate();
-  const [positions, setPositions] = useState<Map<string, { x: number, y: number }>>();
-  const [size, setSize] = useState({ width: 0, height: 0 });
   // The layout last fitted to the view; the graph stays hidden until it matches.
   const [fitted, setFitted] = useState<string>();
-
-  const edges = useMemo<Edge[]>(() => {
-    const byFqn = new Map(resources.map(r => [r.fqn, r]));
-    return resources.flatMap(r => r.downstream.filter(d => byFqn.has(d)).map(d => {
-      // Edges a failure travelled along, from the root cause outward.
-      const traced = byFqn.get(d)!.failedBy === r.fqn;
-      const color = traced ? "var(--av-danger)" : "var(--av-fg-subtle)";
-      return {
-        id: `${r.fqn}->${d}`,
-        source: r.fqn,
-        target: d,
-        style: { stroke: color, strokeWidth: traced ? 1.5 : 1 },
-        markerEnd: { type: MarkerType.ArrowClosed, color, width: 14, height: 14 }
-      };
-    }));
-  }, [resources]);
-
-  // Lay out again only when the graph's shape changes, not on every poll.
-  const shape = useMemo(() => JSON.stringify([resources.map(r => r.fqn), edges.map(e => e.id)]), [resources, edges]);
-
-  useEffect(() => {
-    let cancelled = false;
-    elk.layout({
-      id: "root",
-      layoutOptions: {
-        "elk.algorithm": "layered",
-        "elk.direction": "RIGHT",
-        "elk.layered.spacing.nodeNodeBetweenLayers": "72",
-        "elk.spacing.nodeNode": "16",
-        "elk.layered.nodePlacement.strategy": "BRANDES_KOEPF"
-      },
-      children: resources.map(r => ({ id: r.fqn, width: NODE_W, height: NODE_H })),
-      edges: edges.map(e => ({ id: e.id, sources: [e.source], targets: [e.target] }))
-    }).then(layout => {
-      if(cancelled) return;
-      setPositions(new Map((layout.children ?? []).map(c => [c.id, { x: c.x ?? 0, y: c.y ?? 0 }])));
-      const box = layout as { width?: number, height?: number };
-      setSize({ width: box.width ?? 0, height: box.height ?? 0 });
-    });
-    return () => {
-      cancelled = true;
-    };
-    // oxlint-disable-next-line react-hooks/exhaustive-deps -- `shape` captures resources and edges
-  }, [shape]);
+  const edges = useMemo(() => graphEdges(resources), [resources]);
+  const { shape, positions } = layout;
 
   const nodes = useMemo<ResourceNode[]>(
     () => resources.map(r => ({
       id: r.fqn,
       type: "resource",
-      position: positions?.get(r.fqn) ?? { x: 0, y: 0 },
+      position: positions[r.fqn] ?? { x: 0, y: 0 },
       data: { resource: r },
       width: NODE_W,
       height: NODE_H,
@@ -110,35 +137,33 @@ export function Graph({ resources }: { resources: ResourceInfo[] }) {
     [resources, positions]
   );
 
-  const height = Math.min(Math.max(size.height + 64, 200), 460);
+  const height = Math.min(Math.max(layout.height + 64, 200), 460);
 
   return (
     <div style={{ height }} className="[&_.react-flow__attribution]:bg-transparent [&_.react-flow__attribution_a]:text-fg-subtle [&_.react-flow__controls]:overflow-hidden [&_.react-flow__controls]:rounded-md [&_.react-flow__controls]:border [&_.react-flow__controls]:border-line [&_.react-flow__controls-button]:border-line [&_.react-flow__controls-button]:bg-surface [&_.react-flow__controls-button]:fill-fg-muted [&_.react-flow__controls-button:hover]:bg-hover">
-      {positions && (
-        <ReactFlow
-          className={fitted === shape ? "animate-in fade-in duration-300 ease-out" : "opacity-0"}
-          key={shape}
-          nodes={nodes}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          minZoom={0.3}
-          maxZoom={1.5}
-          nodesConnectable={false}
-          nodesDraggable={false}
-          elementsSelectable={false}
-          zoomOnScroll={false}
-          preventScrolling={false}
-          onNodeClick={(_, node) => navigate({ to: "/r/$fqn", params: { fqn: node.id } })}
-          // React Flow's own first fit (the `fitView` prop, or fitView() in
-          // onInit) runs before it knows the container's size and drops the
-          // padding, so fit one frame later and show the graph once framed.
-          onInit={i => requestAnimationFrame(() => void i.fitView(FIT_VIEW).then(() => setFitted(shape)))}
-          aria-label="Resource dependency graph"
-        >
-          <Background variant={BackgroundVariant.Lines} gap={27} size={1} color="var(--av-grid)" />
-          <Controls showInteractive={false} fitViewOptions={FIT_VIEW} position="bottom-right" />
-        </ReactFlow>
-      )}
+      <ReactFlow
+        className={fitted === shape ? "animate-in fade-in duration-300 ease-out" : "opacity-0"}
+        key={shape}
+        nodes={nodes}
+        edges={edges}
+        nodeTypes={nodeTypes}
+        minZoom={0.3}
+        maxZoom={1.5}
+        nodesConnectable={false}
+        nodesDraggable={false}
+        elementsSelectable={false}
+        zoomOnScroll={false}
+        preventScrolling={false}
+        onNodeClick={(_, node) => navigate({ to: "/r/$fqn", params: { fqn: node.id } })}
+        // React Flow's own first fit (the `fitView` prop, or fitView() in
+        // onInit) runs before it knows the container's size and drops the
+        // padding, so fit one frame later and show the graph once framed.
+        onInit={i => requestAnimationFrame(() => void i.fitView(FIT_VIEW).then(() => setFitted(shape)))}
+        aria-label="Resource dependency graph"
+      >
+        <Background variant={BackgroundVariant.Lines} gap={27} size={1} color="var(--av-grid)" />
+        <Controls showInteractive={false} fitViewOptions={FIT_VIEW} position="bottom-right" />
+      </ReactFlow>
     </div>
   );
 }

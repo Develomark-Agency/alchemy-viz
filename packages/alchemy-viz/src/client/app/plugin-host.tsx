@@ -2,7 +2,7 @@
  * Loads a plugin view or page module on demand and renders it inside an
  * error boundary, so a broken custom view can't take down the panel.
  */
-import { useQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery } from "@tanstack/react-query";
 import { Component, type ReactNode } from "react";
 import { pages, views } from "virtual:alchemy-viz/registry";
 import type { ResourceInfo, StackInfo } from "../../types.ts";
@@ -31,14 +31,19 @@ class Boundary extends Component<{ children: ReactNode, resetKey: string }, { er
   }
 }
 
-function useModule<T>(id: string, load: (() => Promise<{ default: T }>) | undefined) {
-  return useQuery({
+/** Loads a view or page module once and keeps it, so it can be fetched ahead of the page that shows it. */
+export function moduleQuery<T>(id: string, load: (() => Promise<{ default: T }>) | undefined) {
+  return queryOptions({
     queryKey: ["module", id],
     queryFn: async () => (await load!()).default,
     enabled: !!load,
     staleTime: Infinity,
     retry: false
   });
+}
+
+function useModule<T>(id: string, load: (() => Promise<{ default: T }>) | undefined) {
+  return useQuery(moduleQuery(id, load));
 }
 
 export function ViewHost({ viewId, resource, stack }: { viewId: string, resource: ResourceInfo, stack: StackInfo }) {

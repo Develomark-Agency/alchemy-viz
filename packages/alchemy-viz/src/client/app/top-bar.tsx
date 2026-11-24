@@ -4,7 +4,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { Activity, Check, ChevronDown, ChevronsUpDown, Layers, LayoutGrid, Monitor, Moon, Plus, RefreshCw, ScrollText, Search, Sun } from "lucide-react";
 import { type PointerEvent as ReactPointerEvent, type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { Button, cn, Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton, Input, Kbd, Path } from "../../ui/index.ts";
+import { Button, cn, Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogTitle, IconButton, Input, Kbd, Path, Skeleton } from "../../ui/index.ts";
 import { STAGE_PATTERN } from "../../run.ts";
 import { Megamenu } from "./megamenu.tsx";
 import { RunMenu } from "./run-controls.tsx";
@@ -71,12 +71,13 @@ function NewStageDialog({ open, onOpenChange, stages, onPick }: { open: boolean,
 }
 
 function ProjectSwitcher() {
-  const { data } = useStack();
+  const { data, error } = useStack();
   const { setStage } = useContext(StageContext);
   const refresh = useRefresh();
   const [newStageOpen, setNewStageOpen] = useState(false);
   const stack = data?.stack;
-  if(!stack) return null;
+  // Holds the switcher's place, so the nav beside it doesn't shift when it arrives.
+  if(!stack) return error ? null : <Skeleton className="h-8 w-36 shrink-0" />;
   // A stage picked but not yet created has no state, so the store doesn't list it.
   const stages = stack.stages.includes(stack.stage) ? stack.stages : [...stack.stages, stack.stage];
   return (

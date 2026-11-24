@@ -17,7 +17,7 @@ export interface StackResponse {
   pages: Array<{ id: string, route: string, title: string, plugin: string }>
 }
 
-async function fetchStack(stage: string | undefined, fresh: boolean): Promise<StackResponse> {
+export async function fetchStack(stage: string | undefined, fresh: boolean): Promise<StackResponse> {
   const params = new URLSearchParams();
   if(stage) params.set("stage", stage);
   if(fresh) params.set("fresh", "1");
@@ -25,6 +25,10 @@ async function fetchStack(stage: string | undefined, fresh: boolean): Promise<St
   const body = await res.json();
   if(!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
   return body;
+}
+
+export function stackKey(stage: string | undefined) {
+  return ["stack", stage ?? null] as const;
 }
 
 export const StageContext = createContext<{ stage: string | undefined, setStage: (stage: string) => void }>({
@@ -36,7 +40,7 @@ export const StageContext = createContext<{ stage: string | undefined, setStage:
 export function useStack() {
   const { stage } = useContext(StageContext);
   return useQuery({
-    queryKey: ["stack", stage ?? null],
+    queryKey: stackKey(stage),
     queryFn: () => fetchStack(stage, false),
     refetchInterval: 4_000,
     placeholderData: previous => previous
@@ -49,7 +53,7 @@ export function useRefresh() {
   const { stage } = useContext(StageContext);
   return useCallback(async () => {
     const fresh = await fetchStack(stage, true);
-    client.setQueryData(["stack", stage ?? null], fresh);
+    client.setQueryData(stackKey(stage), fresh);
     await client.invalidateQueries({ queryKey: ["rpc"] });
   }, [client, stage]);
 }

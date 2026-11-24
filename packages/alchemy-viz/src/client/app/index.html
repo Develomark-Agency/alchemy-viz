@@ -8,6 +8,14 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Ask for the stack and the run status now, while the app's code downloads,
+      // so the first paint has them (see bootstrap.ts).
+      window.__viz = {
+        stack: fetch("/__viz/api/stack").catch(function () {}),
+        run: fetch("/__viz/api/run").catch(function () {})
+      };
+    </script>
     <script type="module" src="./main.tsx"></script>
   </body>
 </html>

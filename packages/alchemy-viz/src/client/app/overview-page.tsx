@@ -2,8 +2,8 @@ import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 import type { ResourceInfo } from "../../types.ts";
-import { cn, EmptyState, JsonInspector, Page, Panel, Path, RunsOn } from "../../ui/index.ts";
-import { Graph } from "./graph.tsx";
+import { cn, EmptyState, JsonInspector, Loading, Page, Panel, Path, RunsOn } from "../../ui/index.ts";
+import { Graph, useGraphLayout } from "./graph.tsx";
 import { ProviderTip } from "./providers.tsx";
 import { ResourceIcon } from "./resource-icon.tsx";
 import { typeLabel } from "./type-label.ts";
@@ -62,6 +62,8 @@ function OutputValue({ value, home }: { value: unknown, home: string }) {
 export function OverviewPage() {
   const stack = useStack().data!.stack;
   const local = stack.resources.filter(r => r.mode === "local").length;
+  // The graph's height depends on its layout; wait for it so nothing below the graph moves when it arrives.
+  const layout = useGraphLayout(stack.resources);
   const output = stack.output && typeof stack.output === "object" && !Array.isArray(stack.output) ? Object.entries(stack.output) : undefined;
 
   return (
@@ -85,32 +87,34 @@ export function OverviewPage() {
             </EmptyState>
           </Panel>
         )
-        : (
-          <>
-            <Panel title="Graph" flush>
-              <Graph resources={stack.resources} />
-            </Panel>
-            <Section title="Resources" count={stack.resources.length}>
-              <div className="grid gap-2 sm:grid-cols-[repeat(auto-fill,minmax(260px,1fr))]">
-                {stack.resources.map(r => <ResourceTile key={r.fqn} r={r} />)}
-              </div>
-            </Section>
-            {output && output.length > 0 && (
-              <Section title="Stack output">
-                <dl className="grid gap-2 sm:grid-cols-[repeat(auto-fill,minmax(320px,1fr))]">
-                  {output.map(([k, v]) => (
-                    <div key={k} className="flex min-w-0 flex-col gap-1 rounded-lg border border-line bg-surface px-3 py-2.5">
-                      <dt className="font-mono text-[11px] text-fg-subtle">{k}</dt>
-                      <dd className="flex min-w-0">
-                        <OutputValue value={v} home={stack.home} />
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
+        : !layout
+          ? <Loading />
+          : (
+            <>
+              <Panel title="Graph" flush>
+                <Graph resources={stack.resources} layout={layout} />
+              </Panel>
+              <Section title="Resources" count={stack.resources.length}>
+                <div className="grid gap-2 sm:grid-cols-[repeat(auto-fill,minmax(260px,1fr))]">
+                  {stack.resources.map(r => <ResourceTile key={r.fqn} r={r} />)}
+                </div>
               </Section>
-            )}
-          </>
-        )}
+              {output && output.length > 0 && (
+                <Section title="Stack output">
+                  <dl className="grid gap-2 sm:grid-cols-[repeat(auto-fill,minmax(320px,1fr))]">
+                    {output.map(([k, v]) => (
+                      <div key={k} className="flex min-w-0 flex-col gap-1 rounded-lg border border-line bg-surface px-3 py-2.5">
+                        <dt className="font-mono text-[11px] text-fg-subtle">{k}</dt>
+                        <dd className="flex min-w-0">
+                          <OutputValue value={v} home={stack.home} />
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </Section>
+              )}
+            </>
+          )}
     </Page>
   );
 }

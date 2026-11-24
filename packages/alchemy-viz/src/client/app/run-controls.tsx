@@ -6,7 +6,9 @@ import { Button, cn, Dialog, DialogBody, DialogContent, DialogDescription, Dialo
 import type { RunCommand, RunInfo, RunResult, RunStatus } from "../../run.ts";
 import { useRefresh, useStack } from "./use-stack.ts";
 
-async function fetchRun(): Promise<RunStatus> {
+export const runKey = ["run"] as const;
+
+export async function fetchRun(): Promise<RunStatus> {
   const res = await fetch("/__viz/api/run");
   const body = await res.json();
   if(!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
@@ -66,7 +68,7 @@ export function RunProvider({ children }: { children: ReactNode }) {
   const isNewStage = !!data && data.stack.resources.length === 0;
 
   const { data: status } = useQuery({
-    queryKey: ["run"],
+    queryKey: runKey,
     queryFn: fetchRun,
     refetchInterval: query => (query.state.data?.runs.length ? 1_500 : 5_000),
     placeholderData: previous => previous
@@ -112,7 +114,7 @@ export function RunProvider({ children }: { children: ReactNode }) {
 
   const start = useCallback(async (command: RunCommand, confirm?: string) => {
     try {
-      client.setQueryData(["run"], await postRun({ action: "start", command, stage, confirm }));
+      client.setQueryData(runKey, await postRun({ action: "start", command, stage, confirm }));
     } catch (error) {
       toast("Couldn't start", { description: error instanceof Error ? error.message : String(error) });
       throw error;
@@ -135,7 +137,7 @@ export function RunProvider({ children }: { children: ReactNode }) {
     },
     stop: async pid => {
       try {
-        client.setQueryData(["run"], await postRun({ action: "stop", pid }));
+        client.setQueryData(runKey, await postRun({ action: "stop", pid }));
       } catch (error) {
         toast("Couldn't stop", { description: error instanceof Error ? error.message : String(error) });
       }
