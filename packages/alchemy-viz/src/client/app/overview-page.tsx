@@ -4,7 +4,7 @@ import { type CSSProperties, useState, useSyncExternalStore } from "react";
 import type { ResourceInfo, StackInfo } from "../../types.ts";
 import { cn, EmptyState, JsonInspector, Loading, Page, Panel, Path } from "../../ui/index.ts";
 import { Graph, useGraphLayout } from "./graph.tsx";
-import { ProviderMark, providerColor, providerOf, ProviderTip } from "./providers.tsx";
+import { ProviderMark, providerColor, providerOf } from "./providers.tsx";
 import { ResourceIcon } from "./resource-icon.tsx";
 import { typeLabel } from "./type-label.ts";
 import { useStack } from "./use-stack.ts";
@@ -35,23 +35,20 @@ function ResourceRow({ r }: { r: ResourceInfo }) {
   const provider = providerOf(r.type);
   const tint = provider && provider.id !== "custom" ? providerColor(provider) : undefined;
   return (
-    <ProviderTip
-      type={r.type}
-      render={(
-        <Link
-          to="/r/$fqn"
-          params={{ fqn: r.fqn }}
-          // The row warms to its provider's color on hover; with no provider it uses the plain hover fill.
-          style={{ "--row-tint": tint ? `color-mix(in srgb, ${tint} 9%, transparent)` : "var(--av-hover)" } as CSSProperties}
-          className="flex h-[44px] shrink-0 items-center gap-[12px] rounded-md px-[6px] transition-colors duration-150 ease-out hover:bg-(--row-tint)"
-        />
-      )}
+    // No provider tooltip here, unlike the graph: the row already shows the provider's mark, and a tooltip
+    // trailing the pointer over a dense list covers the rows beside it and flickers as the pointer crosses them.
+    <Link
+      to="/r/$fqn"
+      params={{ fqn: r.fqn }}
+      // The row warms to its provider's color on hover; with no provider it uses the plain hover fill.
+      style={{ "--row-tint": tint ? `color-mix(in srgb, ${tint} 9%, transparent)` : "var(--av-hover)" } as CSSProperties}
+      className="flex h-[44px] shrink-0 items-center gap-[12px] rounded-md px-[6px] transition-colors duration-150 ease-out hover:bg-(--row-tint)"
     >
       <ResourceIcon type={r.type} size={32} badge={false} />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="truncate text-[13px] leading-4 font-medium">{r.fqn}</span>
         <span className="flex min-w-0 items-center gap-1.5 text-[11.5px] leading-4 text-fg-subtle">
-          {provider && <ProviderMark provider={provider} size={12} className="shrink-0" />}
+          {provider && <span title={provider.label} className="flex shrink-0"><ProviderMark provider={provider} size={12} /></span>}
           <span className="truncate">{typeLabel(r.type).name}</span>
         </span>
       </span>
@@ -59,7 +56,7 @@ function ResourceRow({ r }: { r: ResourceInfo }) {
         className={cn("size-1.5 shrink-0 rounded-full", failed ? "bg-danger" : r.mode === "local" ? "bg-ok" : "bg-transparent")}
         title={failed ? r.failedBy ? `Blocked by ${r.failedBy}` : r.error ?? "Failed" : r.mode === "local" ? "Running locally" : undefined}
       />
-    </ProviderTip>
+    </Link>
   );
 }
 
