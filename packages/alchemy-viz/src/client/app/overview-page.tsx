@@ -74,9 +74,9 @@ interface ListTip {
 }
 
 // The tooltip's mark has to land on the row's, so the tooltip is placed from the mark outward:
-// 1px border + 6px padding in from the left, and 1px border + 4px padding + half the 16px first line up.
+// 1px border + 6px padding in from the left, and 1px border + 2px padding + half the 16px line up.
 const TIP_MARK_INSET = 1 + 6;
-const TIP_MARK_ABOVE = 1 + 4 + 8;
+const TIP_MARK_ABOVE = 1 + 2 + 8;
 
 /**
  * Every resource, with one tooltip shared by all rows. Hovering a row opens it (after a beat) over that row's
@@ -146,7 +146,7 @@ function ResourceList({ resources, empty }: { resources: ResourceInfo[], empty: 
         aria-hidden
         style={tip && { left: tip.left, top: tip.top }}
         className={cn(
-          "pointer-events-none fixed z-50 overflow-hidden rounded-md border border-line bg-surface px-[6px] py-[4px] text-[12px] font-medium whitespace-nowrap text-fg shadow-popup ease-(--ease-out)",
+          "pointer-events-none fixed z-50 overflow-hidden rounded-md border border-line bg-surface px-[6px] py-[2px] text-[12px] font-medium whitespace-nowrap text-fg shadow-popup ease-(--ease-out)",
           // It appears where it opens, and only slides while it stays open; it leaves faster than it arrives.
           open ? slide ? "[transition:opacity_150ms,left_90ms,top_90ms]" : "[transition:opacity_150ms]" : "[transition:opacity_100ms]",
           open ? "opacity-100" : "opacity-0"
@@ -154,12 +154,10 @@ function ResourceList({ resources, empty }: { resources: ResourceInfo[], empty: 
       >
         {tip && (
           <TipMorph key={session} id={tip.key}>
-            <span className="flex flex-col">
-              <span className="flex h-[16px] items-center gap-[6px]">
-                <ProviderMark provider={tip.provider} size={12} className="shrink-0" />
-                {tip.provider.label}
-              </span>
-              <span className="pl-[18px] text-[11.5px] leading-[14px] font-normal text-fg-subtle">{tip.kind}</span>
+            <span className="flex h-[16px] items-center gap-[6px]">
+              <ProviderMark provider={tip.provider} size={12} className="shrink-0" />
+              {tip.provider.label}
+              <span className="font-normal text-fg-subtle">{tip.kind}</span>
             </span>
           </TipMorph>
         )}
