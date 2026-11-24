@@ -23,9 +23,9 @@ function ResourceChip({ fqn, type }: { fqn: string, type: string }) {
       to="/r/$fqn"
       params={{ fqn }}
       title={typeLabel(type).name}
-      className="group/chip inline-flex h-6 max-w-full items-center gap-1.5 rounded-md border border-line bg-surface pr-1.5 pl-0.5 text-[13px] font-medium transition-[border-color,background-color] duration-150 ease-out hover:border-line-strong hover:bg-hover/60"
+      className="group/chip inline-flex max-w-full items-center gap-2 rounded-[8px] border border-line bg-surface p-[3px] pr-2.5 text-[13px] leading-none font-medium transition-[border-color,background-color] duration-150 ease-out hover:border-line-strong hover:bg-hover/60"
     >
-      <ResourceIcon type={type} size={20} className="border-0 bg-transparent" />
+      <ResourceIcon type={type} size={22} className="border-0 bg-transparent" />
       <span className="truncate">{fqn}</span>
       <ArrowRight className="size-3 shrink-0 -translate-x-0.5 text-fg-subtle opacity-0 transition-[opacity,translate] duration-150 ease-out group-hover/chip:translate-x-0 group-hover/chip:opacity-100" />
     </Link>
@@ -166,11 +166,11 @@ export function ResourcePage() {
   return (
     <Page
       title={
-        <span className="flex items-center gap-2.5">
+        <span className="flex min-w-0 items-center gap-2.5">
           <ProviderTip type={resource.type} render={<span className="inline-flex" />}>
             <ResourceIcon type={resource.type} size={30} />
           </ProviderTip>
-          {resource.logicalId}
+          <span className="truncate">{resource.logicalId}</span>
         </span>
       }
       subtitle={(

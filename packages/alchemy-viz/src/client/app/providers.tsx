@@ -1,6 +1,6 @@
 import { createTooltipController, Tooltip, TooltipContent, TooltipTrigger } from "@ui-sdk/react/tooltip";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { cloneElement, type CSSProperties, type ReactElement, type ReactNode, useLayoutEffect, useRef, useState } from "react";
+import { cloneElement, createContext, type CSSProperties, type ReactElement, type ReactNode, useContext, useLayoutEffect, useRef, useState } from "react";
 import { easeOut } from "../../ui/easing.ts";
 import { cn } from "../../ui/index.ts";
 import { ModeIcon } from "./mode-icon.tsx";
@@ -124,10 +124,12 @@ function TipSession({ open, payload }: { open: boolean, payload: TipPayload }) {
   return <TipBody key={session} payload={payload} />;
 }
 
+const InSizer = createContext(false);
+
 /**
- * The tooltip's label. Changing `id` cross-fades the old label out and the new
- * one in, both through a slight blur, while the width eases to fit the new one
- * instead of jumping. Shared by every tooltip that swaps its label in place.
+ * The tooltip's label: the box eases to the width of whatever it now says,
+ * instead of jumping. `id` is the whole content's identity, so it re-measures
+ * when any part changes; the parts themselves swap through `TipSwap`.
  */
 function TipMorph({ id, children }: { id: string, children: ReactNode }) {
   const reduce = useReducedMotion();
@@ -137,51 +139,68 @@ function TipMorph({ id, children }: { id: string, children: ReactNode }) {
 
   // w-max: while the box eases narrower, the label keeps its own width (and
   // its mark its size) and is clipped, instead of being squeezed to fit.
-  const row = "flex w-max items-center gap-1.5 whitespace-nowrap";
   return (
     <motion.div className="relative" initial={false} animate={{ width }} transition={{ duration: reduce ? 0 : 0.24, ease: easeOut }}>
-      {/* Measures the new label at its natural width; the visible ones may be mid-fade. */}
-      <span ref={sizer} aria-hidden className={`invisible absolute top-0 left-0 ${row}`}>{children}</span>
-      <AnimatePresence initial={false} mode="popLayout">
-        <motion.span
-          key={id}
-          className={row}
-          initial={{ opacity: 0, filter: reduce ? "blur(0px)" : BLUR }}
-          animate={{ opacity: 1, filter: "blur(0px)", transition: { opacity: { duration: 0.2, ease: easeOut }, filter: { duration: 0.32, ease: easeOut } } }}
-          // Leaving is quicker: it's getting out of the way.
-          exit={{ opacity: 0, filter: reduce ? "blur(0px)" : BLUR, transition: { duration: 0.18, ease: easeOut } }}
-        >
-          {children}
-        </motion.span>
-      </AnimatePresence>
+      {/* Measures the new label at its natural width, without any part mid-fade. */}
+      <InSizer.Provider value>
+        <span ref={sizer} aria-hidden className="invisible absolute top-0 left-0 w-max whitespace-nowrap">{children}</span>
+      </InSizer.Provider>
+      <div className="w-max whitespace-nowrap">{children}</div>
     </motion.div>
   );
 }
 
-/** The tooltip's label: the provider's mark and name, with the kind under them when there is one. */
+/**
+ * One part of the label. While its `id` stays the same it is left alone (it
+ * only slides, if what is around it changed size); when it changes, the old
+ * one cross-fades out and the new one in, both through a slight blur.
+ */
+function TipSwap({ id, className, children }: { id: string, className?: string, children: ReactNode }) {
+  const reduce = useReducedMotion();
+  if(useContext(InSizer)) return <span className={className}>{children}</span>;
+  return (
+    <AnimatePresence initial={false} mode="popLayout">
+      <motion.span
+        key={id}
+        layout="position"
+        className={className}
+        initial={{ opacity: 0, filter: reduce ? "blur(0px)" : BLUR }}
+        animate={{ opacity: 1, filter: "blur(0px)", transition: { opacity: { duration: 0.2, ease: easeOut }, filter: { duration: 0.32, ease: easeOut } } }}
+        // Leaving is quicker: it's getting out of the way.
+        exit={{ opacity: 0, filter: reduce ? "blur(0px)" : BLUR, transition: { duration: 0.18, ease: easeOut } }}
+      >
+        {children}
+      </motion.span>
+    </AnimatePresence>
+  );
+}
+
+/** The tooltip's label: the provider's mark and name, with the kind and where it runs under them when there are some. */
 function TipBody({ payload: { provider, kind, place } }: { payload: TipPayload }) {
-  const name = (
+  const head = (
     <span className="flex items-center gap-1.5">
-      <ProviderMark provider={provider} size={12} className="shrink-0" />
-      {provider.label}
+      <TipSwap id={`${provider.id}:${provider.label}`} className="flex items-center gap-1.5">
+        <ProviderMark provider={provider} size={12} className="shrink-0" />
+        {provider.label}
+      </TipSwap>
+      {kind && <TipSwap id={kind} className="font-normal text-fg-subtle">{kind}</TipSwap>}
     </span>
   );
   return (
-    <TipMorph id={`${provider.id}:${provider.label}:${kind ?? ""}:${place?.text ?? ""}`}>
+    <TipMorph id={`${provider.id}:${provider.label}:${kind ?? ""}:${place?.mode ?? ""}:${place?.text ?? ""}`}>
       {kind
         ? (
           <span className="flex flex-col gap-0.5">
-            {name}
-            <span className="font-normal text-fg-subtle">{kind}</span>
+            {head}
             {place && (
-              <span className={cn("flex items-center gap-1.5 font-normal text-fg-subtle", place.failed && "text-danger")}>
+              <TipSwap id={`${place.mode}:${place.text}:${place.failed}`} className={cn("flex items-center gap-1.5 font-normal text-fg-subtle", place.failed && "text-danger")}>
                 <ModeIcon mode={place.mode} size={12} />
                 {place.text}
-              </span>
+              </TipSwap>
             )}
           </span>
         )
-        : name}
+        : head}
     </TipMorph>
   );
 }

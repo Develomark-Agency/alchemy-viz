@@ -52,8 +52,9 @@ export function ResourceIcon({ type, size = 20, badge: showBadge = size >= BADGE
         height: size,
         borderRadius: Math.round(size * 0.19),
         ...tint && {
-          borderColor: `color-mix(in srgb, ${tint} 28%, var(--av-line))`,
-          backgroundColor: `color-mix(in srgb, ${tint} 9%, var(--av-surface))`,
+          // Translucent, so the tile takes on whatever it sits on (surface, hover, dark mode) instead of a fixed opaque wash.
+          borderColor: `color-mix(in srgb, ${tint} 30%, transparent)`,
+          backgroundColor: `color-mix(in srgb, ${tint} 14%, transparent)`,
           color: `color-mix(in srgb, ${tint} 45%, var(--av-fg-muted))`
         }
       }}

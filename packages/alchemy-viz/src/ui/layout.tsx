@@ -21,7 +21,8 @@ export function Page({
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <h1 className="flex flex-wrap items-center gap-2.5 text-[26px] leading-8 font-medium tracking-[-0.025em]">
-            <span className="truncate">{title}</span>
+            {/* Rich titles manage their own truncation: clipping here would cut off an icon's corner badge. */}
+            <span className={typeof title === "string" ? "truncate" : "min-w-0"}>{title}</span>
             {badges}
           </h1>
           {subtitle && <p className="mt-2 text-[13px] text-fg-muted">{subtitle}</p>}
