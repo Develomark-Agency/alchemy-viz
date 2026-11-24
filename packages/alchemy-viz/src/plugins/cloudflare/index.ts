@@ -5,6 +5,7 @@
  */
 import { definePlugin } from "../../index.ts";
 import type { ResourceInfo } from "../../types.ts";
+import { namespacesOf } from "./durable-objects/namespaces.ts";
 import { dashboardLink, isLocalResource } from "./links.ts";
 import { disposeLocalRuntime, localDataId } from "./runtime.ts";
 
@@ -45,6 +46,13 @@ export function cloudflare() {
         title: "Worker",
         server: file("./worker/server.ts"),
         view: file("./worker/view.tsx")
+      },
+      {
+        type: "Cloudflare.Worker",
+        title: "Durable Objects",
+        server: file("./durable-objects/server.ts"),
+        view: file("./durable-objects/view.tsx"),
+        when: r => namespacesOf(r).length > 0
       }
     ],
     link: dashboardLink,
