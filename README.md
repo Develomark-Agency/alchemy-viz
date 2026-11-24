@@ -1,10 +1,10 @@
 # alchemy-viz
 
-A local dashboard for [Alchemy v2](https://alchemy.run) stacks. It lets you browse and edit the resources `alchemy dev` is running: KV keys, D1 tables, R2 objects, Durable Object storage, queue messages, Workflow instances, Secrets Store values, containers, sent email, and Workers (requests, cron triggers, logs). You can also add pages for your own resource types.
+A local dashboard for [Alchemy v2](https://alchemy.run) stacks. It lets you browse and edit the resources `alchemy dev` is running: KV keys, D1 tables, R2 objects, Durable Object storage, queue messages, Workflow instances, Secrets Store values, containers, sent email, and Workers (requests, cron triggers, logs). Turso databases, groups and tokens get views too, against Turso Cloud. You can also add pages for your own resource types.
 
 ```
 packages/alchemy-viz   the library: CLI, server, dashboard, UI kit, built-in Cloudflare plugin
-examples/basic         a test Alchemy project (Worker + KV + D1 + R2 + Queue + Durable Object + Workflow + Secrets Store + email + a custom resource)
+examples/basic         a test Alchemy project (Worker + KV + D1 + R2 + Queue + Durable Object + Workflow + Secrets Store + email + a custom resource, and opt-in Turso)
 ```
 
 ## Try it
@@ -88,7 +88,7 @@ export default defineConfig({
 ```
 
 - `server` and `view` can be a path relative to the config file, an absolute path, a `file:` URL (`new URL("./view.tsx", import.meta.url)` in a published plugin), or a package specifier (`"my-plugin/views/table"`).
-- Listing `plugins` replaces the defaults, so include `cloudflare()` if you want it.
+- Listing `plugins` replaces the defaults (`cloudflare()` and `turso()`), so include the ones you want.
 - A resource gets one tab per view that matches its type, in plugin order. Give a view `when: resource => boolean` to show it only where it has something to show (the built-in Durable Objects tab appears only on Workers that host one).
 - The config is validated at startup, so a mistake names the field that's wrong.
 - CLI flags: `--stage` (or `ALCHEMY_STAGE`), `--port`, `--config`; `alchemy-viz --help` lists them. Set `VIZ_DEBUG=1` to see Vite's own output.
@@ -188,3 +188,16 @@ For your own markup, use Tailwind with the theme's tokens: `bg-surface`, `bg-sur
 Every resource also gets **Details** (attributes, props, bindings, dependencies) and **Logs**.
 
 Local queues keep no backlog (messages go straight to the consumer), so there's nothing to browse; Durable Objects appear once they've written to storage, listed by id. Containers need Docker; the example enables one with `EXAMPLE_CONTAINERS=1 bun run dev`. For Hyperdrive, start the example's seeded Postgres in Docker with `bun run db:up` (`bun run db:down` removes it), then run `EXAMPLE_HYPERDRIVE=1 bun run dev`.
+
+## Built-in Turso views
+
+`alchemy-viz/turso` covers every [`@alchemy.run/turso`](https://alchemy.run/turso) resource. Turso has no local simulator, so these views talk to Turso Cloud. They use the same credentials as the stack: `TURSO_API_TOKEN` (and optionally `TURSO_ORGANIZATION`), or the selected Alchemy profile (`alchemy profile edit --add Turso`). The Platform API token stays in the alchemy-viz process.
+
+| Resource | View |
+| --- | --- |
+| Database | URL, region, group, applied migrations and this period's usage; table browser and SQL console over the database's own SQL endpoint, with a short-lived token minted for it. A database served by a libSQL server on this machine (`http://127.0.0.1…`, or a local provider) is queried there with no token |
+| Group | Locations and their status; every database in the group, linked to the stack's own and marking the ones it doesn't manage |
+| Database token / Group token / API token | Access, scope and expiry; the token hidden until revealed; a check that runs `SELECT 1` with it on each database it covers, or validates an API token with Turso |
+| Organization settings / member / invite | The organization's settings (marking the ones the stack manages, and any drift), plan usage against its quotas, members and pending invites |
+
+The example declares a group, a database with migrations and a seed file, a database token, a group token, a group-scoped API token and organization settings. They're real Turso resources, so they're opt-in: `EXAMPLE_TURSO=1 TURSO_API_TOKEN=… bun run dev`. Like the other opt-in resources, a later run without `EXAMPLE_TURSO=1` deletes them. Members and invites need a team organization on a paid plan, so the example leaves them out.

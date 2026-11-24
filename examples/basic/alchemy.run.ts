@@ -1,4 +1,5 @@
 import * as Cloudflare from "@alchemy.run/cloudflare";
+import * as Turso from "@alchemy.run/turso";
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -61,10 +62,31 @@ const Api = Effect.gen(function* () {
 
 export type ApiEnv = Cloudflare.InferEnv<typeof Api>;
 
+/**
+ * Opt in with EXAMPLE_TURSO=1 and a Turso Platform API token (TURSO_API_TOKEN,
+ * or `alchemy profile edit --add Turso`). Turso has no local simulator, so
+ * these are real cloud resources, even under `alchemy dev`. Members and
+ * invites need a paid team organization, so they're left out.
+ */
+const TursoNotes = Effect.gen(function* () {
+  const group = yield* Turso.Group("NotesGroup", { location: "aws-us-west-2" });
+  const db = yield* Turso.Database("Notes", {
+    group: group.name,
+    migrations: "./turso/migrations",
+    importFiles: ["./turso/seed.sql"]
+  });
+  yield* Turso.DatabaseToken("NotesReader", { database: db.name, authorization: "read-only", expiration: "7d" });
+  yield* Turso.GroupToken("GroupReader", { group: group.name, authorization: "read-only", expiration: "1d" });
+  yield* Turso.ApiToken("GroupAdmin", { group: group.name, scopes: ["read", "db:mint-token"] });
+  // Already the org's value, so this manages the setting without changing it.
+  yield* Turso.OrganizationSettings("Org", { overages: false });
+  return db;
+});
+
 export default Alchemy.Stack(
   "VizExample",
   {
-    providers: Layer.mergeAll(Cloudflare.providers(), FeatureFlagsProvider()),
+    providers: Layer.mergeAll(Cloudflare.providers(), Turso.providers(), FeatureFlagsProvider()),
     state: Alchemy.localState()
   },
   Effect.gen(function* () {
@@ -72,6 +94,7 @@ export default Alchemy.Stack(
     const flags = yield* FeatureFlags("Flags", {
       flags: { newCheckout: false, darkMode: true, betaSearch: false }
     });
-    return { url: api.url, flagsFile: flags.file };
+    const notes = process.env.EXAMPLE_TURSO ? yield* TursoNotes : undefined;
+    return { url: api.url, flagsFile: flags.file, ...(notes ? { tursoUrl: notes.url } : {}) };
   })
 );

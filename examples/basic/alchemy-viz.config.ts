@@ -1,5 +1,6 @@
 import { defineConfig, definePlugin } from "alchemy-viz";
 import { cloudflare } from "alchemy-viz/cloudflare";
+import { turso } from "alchemy-viz/turso";
 
 /**
  * A project-local plugin: a page for the one-off `Acme.FeatureFlags`
@@ -28,5 +29,5 @@ const acme = definePlugin({
 
 export default defineConfig({
   stack: "./alchemy.run.ts",
-  plugins: [cloudflare(), acme]
+  plugins: [cloudflare(), turso(), acme]
 });

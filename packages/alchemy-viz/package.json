@@ -12,7 +12,8 @@
     "./client": "./src/client/index.tsx",
     "./ui": "./src/ui/index.ts",
     "./ui/styles.css": "./src/ui/styles.css",
-    "./cloudflare": "./src/plugins/cloudflare/index.ts"
+    "./cloudflare": "./src/plugins/cloudflare/index.ts",
+    "./turso": "./src/plugins/turso/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

@@ -1,4 +1,4 @@
-import { Archive, Box, Boxes, Cpu, Database, Flag, Globe, Inbox, KeyRound, ListOrdered, type LucideIcon, Mail, Timer, Workflow } from "lucide-react";
+import { Archive, Box, Boxes, Building2, Cpu, Database, Flag, Globe, Inbox, KeyRound, Layers, ListOrdered, type LucideIcon, Mail, Settings, Timer, UserPlus, Users, Workflow } from "lucide-react";
 import { cn } from "../../ui/index.ts";
 import { ProviderMark, providerColor, providerOf } from "./providers.tsx";
 
@@ -14,7 +14,14 @@ const known: Array<[RegExp, LucideIcon]> = [
   [/Cron|Schedule/, Timer],
   [/Domain|DNS|Route/, Globe],
   [/Inbox/, Inbox],
-  [/Flag/, Flag]
+  [/Flag/, Flag],
+  [/Database$/, Database],
+  [/Token$/, KeyRound],
+  [/\.Group$/, Layers],
+  [/OrganizationSettings$/, Settings],
+  [/OrganizationMember$/, Users],
+  [/OrganizationInvite$/, UserPlus],
+  [/Organization$/, Building2]
 ];
 
 export function iconFor(type: string): LucideIcon {

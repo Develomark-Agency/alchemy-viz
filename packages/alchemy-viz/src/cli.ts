@@ -6,6 +6,7 @@
 import { command, extendType, number, option, optional, run, string } from "cmd-ts";
 import pkg from "../package.json" with { type: "json" };
 import { cloudflare } from "./plugins/cloudflare/index.ts";
+import { turso } from "./plugins/turso/index.ts";
 import { startServer } from "./server/http.ts";
 import { loadConfig, makeImportFromProject } from "./server/project.ts";
 
@@ -58,7 +59,7 @@ const cli = command({
       config: args.config,
       stage: args.stage,
       port: args.port,
-      builtins: [cloudflare()]
+      builtins: [cloudflare(), turso()]
     });
 
     const teardowns: Array<() => void | Promise<void>> = [];
