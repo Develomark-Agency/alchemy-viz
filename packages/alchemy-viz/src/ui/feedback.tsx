@@ -81,7 +81,7 @@ export const StatusPill = StatusText;
 
 /** Where a resource runs: a local simulator, or the cloud. */
 export function RunsOn({ mode, className }: { mode: "local" | "live" | undefined, className?: string }) {
-  if(!mode) return <span className={cn("text-[13px] text-fg-subtle", className)}>—</span>;
+  if(!mode) return <span className={cn("text-[13px] text-fg-subtle", className)}>Unknown</span>;
   const Icon = mode === "local" ? Laptop : Cloud;
   return (
     <span className={cn("inline-flex items-center gap-1.5 text-[13px] whitespace-nowrap text-fg-muted", className)}>

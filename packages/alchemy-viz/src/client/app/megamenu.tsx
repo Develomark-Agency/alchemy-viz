@@ -6,11 +6,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ResourceInfo, StackInfo } from "../../types.ts";
 import { AutoHeight, cn, easeOut, Kbd, SearchInput } from "../../ui/index.ts";
 import { ProviderTip } from "./providers.tsx";
-import { modeOf } from "./resource-mode.ts";
+import { matchesMode, type ModeFilter, modeOf } from "./resource-mode.ts";
 import { ResourceIcon } from "./resource-icon.tsx";
 import { typeLabel } from "./type-label.ts";
-
-type Scope = "all" | "local" | "cloud";
 
 /** Items that stay slide to their new place; ones that leave fade and blur out. */
 const MOVE: Transition = { type: "spring", duration: 0.38, bounce: 0 };
@@ -68,7 +66,7 @@ function ScopeButton({ active, onClick, label, count, dot }: { active: boolean, 
 
 export function Megamenu({ stack, onNavigate }: { stack: StackInfo, onNavigate: () => void }) {
   const [query, setQuery] = useState("");
-  const [scope, setScope] = useState<Scope>("all");
+  const [scope, setScope] = useState<ModeFilter>("all");
   const pathname = useRouterState({ select: s => s.location.pathname });
 
   // While the list rearranges, rows on their way out are still in it and the menu is still easing to its new
@@ -87,12 +85,13 @@ export function Megamenu({ stack, onNavigate }: { stack: StackInfo, onNavigate: 
   const counts = {
     all: stack.resources.length,
     local: stack.resources.filter(r => modeOf(r) === "local").length,
-    cloud: stack.resources.filter(r => modeOf(r) === "live").length
+    cloud: stack.resources.filter(r => modeOf(r) === "live").length,
+    unknown: stack.resources.filter(r => !modeOf(r)).length
   };
 
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const shown = stack.resources.filter(r => (scope === "all" || (scope === "local" ? modeOf(r) === "local" : modeOf(r) === "live"))
+    const shown = stack.resources.filter(r => matchesMode(r, scope)
       && (!q || `${r.fqn} ${r.type} ${typeLabel(r.type).name}`.toLowerCase().includes(q)));
     return group(shown);
   }, [stack.resources, query, scope]);
@@ -116,7 +115,8 @@ export function Megamenu({ stack, onNavigate }: { stack: StackInfo, onNavigate: 
             <div className="flex flex-col gap-0.5 max-md:hidden">
               <ScopeButton active={scope === "all"} onClick={() => change(() => setScope("all"))} label="All" count={counts.all} />
               <ScopeButton active={scope === "local"} onClick={() => change(() => setScope("local"))} label="Running locally" count={counts.local} dot />
-              <ScopeButton active={scope === "cloud"} onClick={() => change(() => setScope("cloud"))} label="Cloud only" count={counts.cloud} />
+              <ScopeButton active={scope === "live"} onClick={() => change(() => setScope("live"))} label="Cloud only" count={counts.cloud} />
+              {counts.unknown > 0 && <ScopeButton active={scope === "unknown"} onClick={() => change(() => setScope("unknown"))} label="Unknown" count={counts.unknown} />}
             </div>
           </aside>
 

@@ -2,8 +2,8 @@ import type { ResourceInfo } from "../../types.ts";
 import { providerOf } from "./providers.tsx";
 
 /**
- * Where a resource runs: `local` in a simulator on this machine, `live` in the cloud, or undefined when
- * that can't be told.
+ * Where a resource runs: `local` in a simulator on this machine, `live` in the cloud, or undefined (shown as
+ * unknown) when that can't be told.
  *
  * Alchemy records a mode only for resource types that have both a local and a live provider. Types with a
  * single provider (Vectorize, say, which has no simulator and so always talks to Cloudflare) have none, so
@@ -16,4 +16,11 @@ export function modeOf(r: ResourceInfo): "local" | "live" | undefined {
   if(Object.values(r.attr ?? {}).some(v => typeof v === "string" && v.startsWith("dev:"))) return "local";
   const provider = providerOf(r.type);
   return provider && provider.id !== "custom" ? "live" : undefined;
+}
+
+export type ModeFilter = "all" | "local" | "live" | "unknown";
+
+/** Whether a resource belongs under a filter; every resource is under exactly one of local, live and unknown. */
+export function matchesMode(r: ResourceInfo, filter: ModeFilter) {
+  return filter === "all" || (modeOf(r) ?? "unknown") === filter;
 }

@@ -8,7 +8,7 @@ import { cn, EmptyState, JsonInspector, Kbd, Loading, Page, Panel, Path } from "
 import { useOpenPalette } from "./command-palette.tsx";
 import { Graph, useGraphLayout } from "./graph.tsx";
 import { ProviderMark, providerColor, providerOf, ProviderTip } from "./providers.tsx";
-import { modeOf } from "./resource-mode.ts";
+import { matchesMode, type ModeFilter, modeOf } from "./resource-mode.ts";
 import { ResourceIcon } from "./resource-icon.tsx";
 import { typeLabel } from "./type-label.ts";
 import { useStack } from "./use-stack.ts";
@@ -140,12 +140,14 @@ function ResourceList({ resources, empty, onHighlight }: { resources: ResourceIn
   );
 }
 
-type Filter = "all" | "local" | "live";
-const filters: Array<{ id: Filter, label: string }> = [
+const filters: Array<{ id: ModeFilter, label: string }> = [
   { id: "all", label: "All" },
   { id: "local", label: "Local" },
-  { id: "live", label: "Cloud" }
+  { id: "live", label: "Cloud" },
+  // Only offered when some resource's location can't be told.
+  { id: "unknown", label: "Unknown" }
 ];
+const emptyHint: Record<ModeFilter, string> = { all: "here", local: "running locally", live: "in the cloud", unknown: "unknown" };
 
 function Stat({ count, label, dot }: { count: number, label: string, dot?: string }) {
   return (
@@ -200,19 +202,19 @@ function SearchField({ onClick }: { onClick: () => void }) {
  * controls sit at its bottom, where they stay put as the list above them changes height.
  */
 function ResourcesPopover({ resources, onHighlight, onSearch }: { resources: ResourceInfo[], onHighlight: (fqn: string | undefined) => void, onSearch: () => void }) {
-  const [filter, setFilter] = useState<Filter>("all");
-  const shown = resources.filter(r => filter === "all" || modeOf(r) === filter);
+  const [filter, setFilter] = useState<ModeFilter>("all");
+  const shown = resources.filter(r => matchesMode(r, filter));
   return (
     <section
       data-dock=""
       aria-label="Resources"
       className="absolute bottom-[58px] left-[12px] z-10 flex max-h-[calc(100%-168px)] w-[296px] max-w-[calc(100%-24px)] animate-in flex-col overflow-clip rounded-[10px] border border-line bg-surface shadow-popup duration-150 ease-out fade-in slide-in-from-bottom-1 lg:bottom-[66px] lg:left-[24px]"
     >
-      <ResourceList resources={shown} onHighlight={onHighlight} empty={`Nothing ${filter === "local" ? "running locally" : "in the cloud"}.`} />
+      <ResourceList resources={shown} onHighlight={onHighlight} empty={`Nothing ${emptyHint[filter]}.`} />
       <div className="flex shrink-0 flex-col gap-2 px-[12px] pt-[6px] pb-[12px]">
         <SearchField onClick={onSearch} />
         <div className="flex gap-1.5">
-          {filters.map(f => (
+          {filters.filter(f => f.id !== "unknown" || resources.some(r => !modeOf(r))).map(f => (
             <button
               key={f.id}
               type="button"
