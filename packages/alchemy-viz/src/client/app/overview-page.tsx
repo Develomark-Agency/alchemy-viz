@@ -1,7 +1,9 @@
 import { Link } from "@tanstack/react-router";
 import { Braces, ChevronUp, Layers, type LucideIcon, Search } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { type CSSProperties, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ResourceInfo, StackInfo } from "../../types.ts";
+import { easeOut } from "../../ui/easing.ts";
 import { cn, EmptyState, JsonInspector, Kbd, Loading, Page, Panel, Path } from "../../ui/index.ts";
 import { useOpenPalette } from "./command-palette.tsx";
 import { Graph, useGraphLayout } from "./graph.tsx";
@@ -78,44 +80,60 @@ function ResourceRow({ r, onHighlight }: { r: ResourceInfo, onHighlight: (fqn: s
 }
 
 /**
- * Every resource. Its height follows its content, eased, so filtering grows and shrinks the list instead of
- * snapping it; when there are more rows than room, it scrolls.
+ * Every resource. Rows slide to their new places, and fade in and out, as the filter changes; the list's
+ * height follows its content, eased to match. When there are more rows than room, it scrolls (with no
+ * scrollbar drawn: one appearing and vanishing as the height eases would shift the rows).
  */
 function ResourceList({ resources, empty, onHighlight }: { resources: ResourceInfo[], empty: string, onHighlight: (fqn: string | undefined) => void }) {
+  const reduce = useReducedMotion();
   const content = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState<number>();
-  // Scrolling is off while the height eases: a list growing into its new size would flash a scrollbar.
-  const [settled, setSettled] = useState(true);
-  const timer = useRef<number>(undefined);
-  useEffect(() => () => window.clearTimeout(timer.current), []);
   useLayoutEffect(() => {
     const el = content.current;
     if(!el) return;
-    const observer = new ResizeObserver(() => {
-      setHeight(previous => {
-        if(previous !== undefined && previous !== el.offsetHeight) {
-          setSettled(false);
-          window.clearTimeout(timer.current);
-          timer.current = window.setTimeout(() => setSettled(true), 220);
-        }
-        return el.offsetHeight;
-      });
-    });
+    const observer = new ResizeObserver(() => setHeight(el.offsetHeight));
     observer.observe(el);
     setHeight(el.offsetHeight);
     return () => observer.disconnect();
   }, []);
 
+  const duration = reduce ? 0 : 0.2;
   return (
     <nav
       aria-label="Resources"
       style={{ height }}
-      className={cn("min-h-0 overscroll-contain [scrollbar-width:thin] transition-[height] duration-200 ease-(--ease-out) motion-reduce:transition-none", settled ? "overflow-y-auto" : "overflow-y-hidden")}
+      className="min-h-0 overflow-y-auto overscroll-contain transition-[height] duration-200 ease-(--ease-out) [scrollbar-width:none] motion-reduce:transition-none [&::-webkit-scrollbar]:hidden"
     >
-      <div ref={content} className="flex flex-col p-[6px]">
-        {resources.length > 0
-          ? resources.map(r => <ResourceRow key={r.fqn} r={r} onHighlight={onHighlight} />)
-          : <p className="px-2 py-3 text-[13px] text-fg-subtle">{empty}</p>}
+      {/* popLayout takes a leaving row out of the flow at once, so the rest move up while it fades. */}
+      <div ref={content} className="relative flex flex-col p-[6px]">
+        <AnimatePresence initial={false} mode="popLayout">
+          {resources.length > 0
+            ? resources.map(r => (
+              <motion.div
+                key={r.fqn}
+                layout="position"
+                className="shrink-0"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0, transition: { duration: duration * 0.6, ease: easeOut } }}
+                transition={{ duration, ease: easeOut }}
+              >
+                <ResourceRow r={r} onHighlight={onHighlight} />
+              </motion.div>
+            ))
+            : (
+              <motion.p
+                key="empty"
+                className="px-2 py-3 text-[13px] text-fg-subtle"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0, transition: { duration: duration * 0.6, ease: easeOut } }}
+                transition={{ duration, ease: easeOut }}
+              >
+                {empty}
+              </motion.p>
+            )}
+        </AnimatePresence>
       </div>
     </nav>
   );
