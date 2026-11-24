@@ -1,6 +1,6 @@
 import { Archive, Box, Boxes, Cpu, Database, Flag, Globe, Inbox, KeyRound, ListOrdered, type LucideIcon, Mail, Timer, Workflow } from "lucide-react";
 import { cn } from "../../ui/index.ts";
-import { ProviderMark, providerOf } from "./providers.tsx";
+import { ProviderMark, providerColor, providerOf } from "./providers.tsx";
 
 const known: Array<[RegExp, LucideIcon]> = [
   [/Worker$/, Cpu],
@@ -25,22 +25,34 @@ export function iconFor(type: string): LucideIcon {
 const BADGE_MIN = 26;
 
 /**
- * A neutral, line-drawn glyph for a resource type, with its provider's mark
- * badged on the corner. Color is reserved for the provider and for state.
+ * A line-drawn glyph for a resource type, faintly tinted in its provider's
+ * color, with the provider's mark badged on the corner when it's big enough.
+ * Color is reserved for the provider and for state; types with no provider
+ * (and custom ones) stay neutral.
  */
 export function ResourceIcon({ type, size = 20, className }: { type: string, size?: number, className?: string }) {
   const Icon = iconFor(type);
-  const provider = size >= BADGE_MIN ? providerOf(type) : undefined;
+  const provider = providerOf(type);
   const badge = Math.round(size * 0.52);
+  const tint = provider && provider.id !== "custom" ? providerColor(provider) : undefined;
   return (
     <span
       aria-hidden
       className={cn("relative inline-flex shrink-0 items-center justify-center border border-line bg-surface text-fg-muted", className)}
       // Radius scales with size, so a small icon isn't rounder than a large one.
-      style={{ width: size, height: size, borderRadius: Math.round(size * 0.19) }}
+      style={{
+        width: size,
+        height: size,
+        borderRadius: Math.round(size * 0.19),
+        ...tint && {
+          borderColor: `color-mix(in srgb, ${tint} 28%, var(--av-line))`,
+          backgroundColor: `color-mix(in srgb, ${tint} 9%, var(--av-surface))`,
+          color: `color-mix(in srgb, ${tint} 45%, var(--av-fg-muted))`
+        }
+      }}
     >
       <Icon style={{ width: Math.round(size * 0.55), height: Math.round(size * 0.55) }} strokeWidth={1.75} />
-      {provider && (
+      {provider && size >= BADGE_MIN && (
         <span
           className="absolute -right-1 -bottom-1 flex items-center justify-center rounded-full border border-line bg-surface"
           style={{ width: badge, height: badge }}
