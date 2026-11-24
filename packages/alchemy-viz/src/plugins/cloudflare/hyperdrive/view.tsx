@@ -33,7 +33,7 @@ export default defineView<typeof server>(({ api, resource, stack }) => {
               <div className="flex flex-col gap-3">
                 <KeyValueList
                   items={[
-                    ["Origin", <span key="o" className="font-mono text-xs">{c.scheme}://{c.user}@{c.host}:{c.port}/{c.database}{c.sslmode ? ` · sslmode ${c.sslmode}` : ""}</span>],
+                    ["Origin", <span key="o" className="font-mono text-xs">{c.scheme}://{c.user}@{c.host}:{c.port}/{c.database}{c.sslmode ? ` (sslmode ${c.sslmode})` : ""}</span>],
                     ["Server", <span key="v" className="text-xs break-words">{c.version ?? "—"}</span>],
                     ["Bound to", c.workers.length
                       ? <span key="w" className="flex flex-wrap gap-2">{c.workers.map(fqn => <ResourceLink key={fqn} fqn={fqn} className="font-mono text-xs hover:underline" />)}</span>

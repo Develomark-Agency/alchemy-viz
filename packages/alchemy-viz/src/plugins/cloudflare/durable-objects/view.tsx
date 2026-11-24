@@ -293,7 +293,7 @@ function QueryConsole({ api, className, id, defaultTable }: { api: DoApi, classN
       </div>
       {query.data && (
         <div className="border-t border-line">
-          <DataTable rows={rows} columns={columns} getRowId={(_, i) => String(i)} empty="No rows returned." footer={`${rows?.length ?? 0} rows · ${query.data.durationMs} ms`} />
+          <DataTable rows={rows} columns={columns} getRowId={(_, i) => String(i)} empty="No rows returned." footer={`${rows?.length ?? 0} rows, ${query.data.durationMs} ms`} />
         </div>
       )}
     </div>

@@ -163,7 +163,7 @@ function ContainerDetail({ api, container, onStopped }: { api: ContainerApi, con
                   ["Command", <span key="c" className="font-mono text-xs break-all">{info.data.cmd.join(" ") || "—"}</span>],
                   ["Started", info.data.startedAt ? new Date(info.data.startedAt).toLocaleString() : "—"],
                   ["Ports", info.data.ports || "—"],
-                  ["Limits", [info.data.cpus && `${info.data.cpus} vCPU`, info.data.memory && formatBytes(info.data.memory)].filter(Boolean).join(" · ") || "None"],
+                  ["Limits", [info.data.cpus && `${info.data.cpus} vCPU`, info.data.memory && formatBytes(info.data.memory)].filter(Boolean).join(", ") || "None"],
                   ["Env", <span key="e" className="font-mono text-xs break-all">{info.data.env.join(", ") || "—"}</span>]
                 ]}
               />

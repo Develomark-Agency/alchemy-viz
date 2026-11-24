@@ -113,7 +113,7 @@ function TableBrowser({ table, api }: { table: string, api: D1Api }) {
       emphasis: c.pk > 0,
       align: NUMERIC.test(c.type) ? "right" : "left",
       header: (
-        <span className="inline-flex items-center gap-1.5" title={[c.type, c.pk > 0 && (compound ? `primary key, part ${c.pk}` : "primary key")].filter(Boolean).join(" · ") || undefined}>
+        <span className="inline-flex items-center gap-1.5" title={[c.type, c.pk > 0 && (compound ? `primary key, part ${c.pk}` : "primary key")].filter(Boolean).join(", ") || undefined}>
           {c.pk > 0 && <KeyRound className="size-3 shrink-0" />}
           {c.name}
           {compound && c.pk > 0 && <span className="font-mono text-[10px] text-fg-subtle">{c.pk}</span>}
@@ -221,7 +221,7 @@ function SqlConsole({ api, sql, setSql, defaultTable, databaseName }: { api: D1A
           title={`${rows?.length ?? 0} row${rows?.length === 1 ? "" : "s"}`}
           actions={(
             <span className="text-xs text-fg-subtle tabular-nums">
-              {query.data.meta.durationMs} ms · {query.data.meta.rowsRead} read · {query.data.meta.rowsWritten} written
+              {query.data.meta.durationMs} ms, {query.data.meta.rowsRead} read, {query.data.meta.rowsWritten} written
             </span>
           )}
           flush

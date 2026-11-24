@@ -117,7 +117,7 @@ function Message({ api, id }: { api: EmailApi, id: string }) {
               <li key={a.path} className="flex items-center gap-2">
                 <Paperclip className="size-3.5 text-fg-subtle" />
                 <span className="font-mono">{a.name}</span>
-                <span className="text-fg-subtle">{a.disposition}{a.size !== undefined && ` · ${formatBytes(a.size)}`}</span>
+                <span className="text-fg-subtle">{a.disposition}{a.size !== undefined && `, ${formatBytes(a.size)}`}</span>
               </li>
             ))}
           </ul>

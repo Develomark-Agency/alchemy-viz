@@ -157,7 +157,7 @@ function KeyDetail({ name, api, onDeleted }: { name: string, api: KvApi, onDelet
       title={(
         <span className="flex min-w-0 items-baseline gap-2">
           <span className="truncate font-mono text-xs">{name}</span>
-          <span className="shrink-0 text-xs font-normal text-fg-subtle">{json ? "JSON" : "Text"} · {formatBytes(new TextEncoder().encode(stored).length)}</span>
+          <span className="shrink-0 text-xs font-normal text-fg-subtle">{json ? "JSON" : "Text"}, {formatBytes(new TextEncoder().encode(stored).length)}</span>
         </span>
       )}
       actions={(

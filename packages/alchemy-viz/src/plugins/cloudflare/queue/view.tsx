@@ -90,8 +90,8 @@ export default defineView<typeof server>(({ resource, api }) => {
                           : <span className="font-mono text-xs text-fg-muted">{c.scriptName}</span>}
                       </span>
                       <span className="text-xs text-fg-subtle">
-                        {Object.entries(c.settings).map(([k, v]) => `${k} ${v}`).join(" · ") || "Default settings"}
-                        {c.deadLetterQueue && ` · dead letters to ${c.deadLetterQueue}`}
+                        {Object.entries(c.settings).map(([k, v]) => `${k} ${v}`).join(", ") || "Default settings"}
+                        {c.deadLetterQueue && `, dead letters to ${c.deadLetterQueue}`}
                       </span>
                     </div>
                   ))}

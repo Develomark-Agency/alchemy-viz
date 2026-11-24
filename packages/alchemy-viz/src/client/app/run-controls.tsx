@@ -253,10 +253,7 @@ function OutputDialog({ open, onOpenChange, status }: { open: boolean, onOpenCha
           <span className={cn("size-1.5 rounded-full", live ? "bg-ok" : failed ? "bg-danger" : "bg-fg-subtle")} />
           <span>{live ? "Running" : status?.last ? (status.last.stopped ? "Stopped" : status.last.code === 0 ? "Finished" : `Exited with code ${status.last.code}`) : "Nothing has run yet"}</span>
           {ran && (
-            <>
-              <span className="text-fg-subtle" aria-hidden>·</span>
-              <Link to="/logs" onClick={() => onOpenChange(false)} className="underline decoration-line-strong underline-offset-2 hover:text-fg hover:decoration-current">Logs</Link>
-            </>
+            <Link to="/logs" onClick={() => onOpenChange(false)} className="ml-2 underline decoration-line-strong underline-offset-2 hover:text-fg hover:decoration-current">Logs</Link>
           )}
         </DialogDescription>
         <DialogBody>
@@ -299,7 +296,7 @@ function ProcessesDialog({ open, onOpenChange, runs, stop }: { open: boolean, on
                     <span className="truncate font-mono text-xs text-fg-muted">{r.stage}</span>
                   </div>
                   <div className="text-xs text-fg-subtle">
-                    pid {r.pid} · started {formatRelative(r.startedAt)} · {r.owned ? "from the dashboard" : "from a terminal"}
+                    pid {r.pid}, started {formatRelative(r.startedAt)}, {r.owned ? "from the dashboard" : "from a terminal"}
                   </div>
                 </div>
                 <Button

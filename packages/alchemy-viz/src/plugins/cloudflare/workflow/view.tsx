@@ -258,7 +258,7 @@ function StepRow({ step, last }: { step: Step, last: boolean }) {
       <div className="flex min-w-0 flex-1 flex-col gap-1 pt-0.5">
         <div className="flex flex-wrap items-baseline gap-x-2">
           <span className="text-[13px] font-medium">{step.name}</span>
-          {kind && <span className="text-xs text-fg-subtle">{kind}{step.detail && ` · ${step.detail}`}</span>}
+          {kind && <span className="text-xs text-fg-subtle">{kind}{step.detail && `, ${step.detail}`}</span>}
           <span className="ml-auto text-xs tabular-nums text-fg-subtle">{duration(step.start, step.end)}</span>
         </div>
         {step.attempts.length > 1 && (

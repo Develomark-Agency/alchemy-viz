@@ -129,7 +129,7 @@ export default defineView<typeof server>(({ resource, stack, api }) => {
 
 function CronPanel({ api, crons }: { api: WorkerApi, crons: string[] }) {
   const trigger = api.trigger.useMutation({
-    onSuccess: (r, input) => toast(r.status < 400 ? "Cron triggered" : `Cron failed (${r.status})`, { description: `${input.cron} · output is in the Logs tab` })
+    onSuccess: (r, input) => toast(r.status < 400 ? "Cron triggered" : `Cron failed (${r.status})`, { description: `Output is in the Logs tab (${input.cron})` })
   });
   return (
     <Panel title="Cron triggers" flush>
@@ -208,7 +208,7 @@ function RequestTool({ api, url }: { api: WorkerApi, url: string }) {
                 <Badge tone={res.status < 300 ? "ok" : res.status < 400 ? "info" : "danger"}>
                   {res.status} {res.statusText}
                 </Badge>
-                <span className="text-xs text-fg-subtle tabular-nums">{res.durationMs} ms · {contentType || "no content-type"}</span>
+                <span className="text-xs text-fg-subtle tabular-nums">{res.durationMs} ms, {contentType || "no content-type"}</span>
               </div>
               <Tabs defaultValue="body">
                 <TabsList aria-label="Response">

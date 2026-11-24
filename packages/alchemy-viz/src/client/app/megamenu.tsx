@@ -109,7 +109,7 @@ export function Megamenu({ stack, onNavigate }: { stack: StackInfo, onNavigate: 
           <aside className="flex shrink-0 flex-col gap-3 border-line p-4 md:w-60 md:border-r">
             <div>
               <div className="text-[13px] font-semibold">Resources</div>
-              <div className="text-xs text-fg-subtle">{stack.resources.length} in {stack.name} · {stack.stage}</div>
+              <div className="text-xs text-fg-subtle">{stack.resources.length} in {stack.name} ({stack.stage})</div>
             </div>
             <SearchInput aria-label="Filter resources" placeholder="Filter resources" value={query} onValueChange={value => change(() => setQuery(value))} />
             <div className="flex flex-col gap-0.5 max-md:hidden">

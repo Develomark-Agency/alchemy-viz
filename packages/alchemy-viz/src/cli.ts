@@ -73,7 +73,7 @@ const cli = command({
     try {
       const stack = await server.getStack();
       const count = stack.resources.length;
-      console.log(`\n  alchemy-viz  ${stack.name} · ${stack.stage} · ${count} resource${count === 1 ? "" : "s"}`);
+      console.log(`\n  alchemy-viz  ${stack.name} (${stack.stage}), ${count} resource${count === 1 ? "" : "s"}`);
     } catch (error) {
       console.warn(`\n  Couldn't read the stack yet: ${error instanceof Error ? error.message : error}`);
     }
