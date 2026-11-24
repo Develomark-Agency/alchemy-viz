@@ -2,7 +2,6 @@ import { Check, CircleAlert, Clock, Hourglass, Pause, Play, Plus, RotateCcw, Sen
 import { useEffect, useState } from "react";
 import { type Api, defineView, useUrlState } from "../../../client/index.tsx";
 import {
-  Badge,
   Button,
   cn,
   CodeEditor,
@@ -29,6 +28,7 @@ import {
   Panel,
   Spinner,
   Split,
+  Status,
   toast,
   type Tone
 } from "../../../ui/index.ts";
@@ -51,8 +51,8 @@ const statusTone: Record<InstanceStatus, Tone> = {
 
 const statusLabel: Partial<Record<InstanceStatus, string>> = { waitingForPause: "pausing" };
 
-function StatusBadge({ status }: { status: InstanceStatus }) {
-  return <Badge tone={statusTone[status]}>{statusLabel[status] ?? status}</Badge>;
+function InstanceState({ status }: { status: InstanceStatus }) {
+  return <Status tone={statusTone[status]} live={active(status)}>{statusLabel[status] ?? status}</Status>;
 }
 
 function active(s: InstanceStatus) {
@@ -70,7 +70,7 @@ function duration(start?: string, end?: string) {
 
 const columns: Array<Column<InstanceSummary>> = [
   { id: "id", header: "Instance", size: 150, cell: i => <span className="truncate font-mono text-xs" title={i.id}>{i.id}</span> },
-  { id: "status", header: "Status", size: 90, accessor: i => i.status, cell: i => <StatusBadge status={i.status} /> },
+  { id: "status", header: "Status", size: 110, accessor: i => i.status, cell: i => <InstanceState status={i.status} /> },
   { id: "steps", header: "Steps", size: 70, align: "right", accessor: i => i.steps.done, cell: i => <span className="text-xs tabular-nums text-fg-muted">{i.steps.done}/{i.steps.total}</span> },
   { id: "created", header: "Created", size: 80, align: "right", accessor: i => i.created, cell: i => <span className="text-xs text-fg-muted" title={new Date(i.created).toLocaleString()}>{formatRelative(i.created)}</span> }
 ];
@@ -157,7 +157,7 @@ function InstanceDetail({ api, id }: { api: WorkflowApi, id: string }) {
           <span className="flex min-w-0 items-center gap-2">
             <span className="truncate font-mono text-xs" title={d.id}>{d.id}</span>
             <CopyButton text={d.id} label="Copy instance id" />
-            <StatusBadge status={d.status} />
+            <InstanceState status={d.status} />
           </span>
         )}
         actions={(

@@ -11,7 +11,7 @@ export { CodeBlock, type CodeLanguage, languageFor } from "./code-block.tsx";
 export { CodeEditor, type EditorLanguage } from "./code-editor.tsx";
 export { type Column, DataTable, fitColumnWidth, formatCell, inferColumns } from "./data-table.tsx";
 export { ConfirmButton, Dialog, DialogBody, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogTitle, DialogTrigger } from "./dialog.tsx";
-export { Badge, Banner, EmptyState, ErrorBanner, ExternalLinkCard, Loading, RunsOn, Skeleton, Spinner, StatusPill, StatusText, type Tone, useDelayed } from "./feedback.tsx";
+export { Badge, Banner, EmptyState, ErrorBanner, ExternalLinkCard, Loading, RunsOn, Skeleton, Spinner, Status, StatusPill, StatusText, type Tone, useDelayed } from "./feedback.tsx";
 export { Field, FieldDescription, FieldError, FieldLabel, Input, type Option, SearchInput, SegmentedControl, Select, Switch, Textarea } from "./form.tsx";
 export { formatBytes, formatRelative, formatTime } from "./format.ts";
 export { CopyButton } from "./copy-button.tsx";

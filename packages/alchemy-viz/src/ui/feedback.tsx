@@ -25,11 +25,37 @@ const tagText: Record<Tone, string> = {
   info: "text-info"
 };
 
-/** A small, flat label: a type, a flag, a count. */
+/** A small, flat label: a flag or a count. For a state, use Status. */
 export function Badge({ tone = "neutral", children, className }: { tone?: Tone, children: ReactNode, className?: string }) {
   return (
-    <span className={cn("inline-flex h-5 items-center rounded-[4px] border border-line bg-surface-2/60 px-1.5 font-mono text-[11px] whitespace-nowrap", tagText[tone], className)}>
+    <span className={cn("inline-flex h-[18px] items-center rounded-full bg-surface-2 px-2 text-[11.5px] leading-none font-medium whitespace-nowrap tabular-nums ring-1 ring-line/70 ring-inset", tagText[tone], className)}>
       {children}
+    </span>
+  );
+}
+
+const dot: Record<Tone, string> = {
+  neutral: "bg-fg-subtle/60",
+  accent: "bg-accent",
+  ok: "bg-ok",
+  warn: "bg-warn",
+  danger: "bg-danger",
+  info: "bg-info"
+};
+
+/**
+ * A state, such as an instance's or a container's: a colored dot and a plain
+ * word. Only failures color the word too; `live` marks work in progress with
+ * a soft pulse around the dot.
+ */
+export function Status({ tone = "neutral", live, children, className }: { tone?: Tone, live?: boolean, children: ReactNode, className?: string }) {
+  return (
+    <span className={cn("inline-flex items-center gap-2 text-[13px] whitespace-nowrap", tone === "danger" ? "text-danger" : "text-fg", className)}>
+      <span className="relative flex size-1.5 shrink-0">
+        {live && <span className={cn("absolute inset-0 animate-ping rounded-full opacity-60 motion-reduce:hidden", dot[tone])} />}
+        <span className={cn("relative size-1.5 rounded-full", dot[tone])} />
+      </span>
+      <span className="first-letter:uppercase">{children}</span>
     </span>
   );
 }

@@ -2,7 +2,6 @@ import { RefreshCw, Square } from "lucide-react";
 import { useMemo } from "react";
 import { type Api, defineView, useUrlState } from "../../../client/index.tsx";
 import {
-  Badge,
   Banner,
   Button,
   cn,
@@ -19,6 +18,7 @@ import {
   LogView,
   Panel,
   Split,
+  Status,
   toast,
   type Tone
 } from "../../../ui/index.ts";
@@ -37,7 +37,7 @@ const columns: Array<Column<ContainerInfo>> = [
     accessor: c => c.objectId ?? c.name,
     cell: c => <span className="truncate font-mono text-xs" title={c.name}>{c.objectId ? `${c.objectId.slice(0, 16)}…` : c.name}</span>
   },
-  { id: "state", header: "State", size: 80, accessor: c => c.state, cell: c => <Badge tone={stateTone[c.state] ?? "neutral"}>{c.state}</Badge> },
+  { id: "state", header: "State", size: 100, accessor: c => c.state, cell: c => <Status tone={stateTone[c.state] ?? "neutral"} live={c.state === "restarting"}>{c.state}</Status> },
   { id: "status", header: "Status", size: 150, cell: c => <span className="text-xs text-fg-muted">{c.status}</span> }
 ];
 
@@ -134,7 +134,7 @@ function ContainerDetail({ api, container, onStopped }: { api: ContainerApi, con
         title={(
           <span className="flex min-w-0 items-center gap-2">
             <span className="truncate font-mono text-xs" title={container.name}>{container.objectId ? `${container.objectId.slice(0, 16)}…` : container.name}</span>
-            <Badge tone={stateTone[container.state] ?? "neutral"}>{container.state}</Badge>
+            <Status tone={stateTone[container.state] ?? "neutral"} live={container.state === "restarting"}>{container.state}</Status>
           </span>
         )}
         actions={running && (

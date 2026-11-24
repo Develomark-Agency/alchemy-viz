@@ -1,6 +1,6 @@
 import { Database } from "lucide-react";
 import { defineView, ResourceLink } from "../../../client/index.tsx";
-import { Badge, ErrorBanner, KeyValueList, Loading, Panel } from "../../../ui/index.ts";
+import { ErrorBanner, KeyValueList, Loading, Panel, Status } from "../../../ui/index.ts";
 import d1 from "../d1/view.tsx";
 import type server from "./server.ts";
 
@@ -20,7 +20,7 @@ export default defineView<typeof server>(({ api, resource, stack }) => {
           <span className="flex items-center gap-2">
             <Database className="size-3.5 text-fg-subtle" />
             Local database
-            {c && (c.ok ? <Badge tone="ok">connected</Badge> : <Badge tone="danger">unreachable</Badge>)}
+            {c && (c.ok ? <Status tone="ok" className="font-normal">Connected</Status> : <Status tone="danger" className="font-normal">Unreachable</Status>)}
           </span>
         )}
         actions={c?.latencyMs !== undefined && <span className="text-xs tabular-nums text-fg-subtle">{c.latencyMs} ms</span>}
