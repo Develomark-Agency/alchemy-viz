@@ -246,13 +246,14 @@ function ResourcesPopover({ resources, onHighlight, onSearch }: { resources: Res
   );
 }
 
-function DockButton({ icon: Icon, label, count, open, onClick }: { icon: LucideIcon, label: string, count: number, open: boolean, onClick: () => void }) {
+function DockButton({ icon: Icon, label, count, open, onClick, onHover }: { icon: LucideIcon, label: string, count: number, open: boolean, onClick: () => void, onHover: () => void }) {
   return (
     <button
       type="button"
       data-dock=""
       aria-expanded={open}
       onClick={onClick}
+      onPointerEnter={e => e.pointerType === "mouse" && onHover()}
       className={cn(
         "flex h-[34px] items-center gap-2 rounded-full border pr-[10px] pl-[12px] text-xs font-medium shadow-popup transition-colors",
         open ? "border-line-strong bg-surface-2 text-fg" : "border-line bg-surface text-fg-muted hover:bg-hover hover:text-fg"
@@ -365,6 +366,11 @@ export function OverviewPage() {
     openPalette();
   }
 
+  // With one popover open, moving onto the other button swaps to it; with none open, hovering does nothing.
+  function swapTo(next: "resources" | "output") {
+    setPanel(current => current ? next : current);
+  }
+
   function toggle(next: "resources" | "output") {
     setPanel(current => current === next ? undefined : next);
   }
@@ -378,8 +384,8 @@ export function OverviewPage() {
         {panel === "resources" && <ResourcesPopover resources={stack.resources} onHighlight={setHighlight} onSearch={search} />}
         {panel === "output" && output && <OutputPanel output={output} home={stack.home} />}
         <div className="absolute bottom-[12px] left-[12px] z-10 flex gap-2 lg:bottom-[24px] lg:left-[24px]">
-          <DockButton icon={Layers} label="Resources" count={stack.resources.length} open={panel === "resources"} onClick={() => toggle("resources")} />
-          {hasOutput && <DockButton icon={Braces} label="Stack output" count={output.length} open={panel === "output"} onClick={() => toggle("output")} />}
+          <DockButton icon={Layers} label="Resources" count={stack.resources.length} open={panel === "resources"} onClick={() => toggle("resources")} onHover={() => swapTo("resources")} />
+          {hasOutput && <DockButton icon={Braces} label="Stack output" count={output.length} open={panel === "output"} onClick={() => toggle("output")} onHover={() => swapTo("output")} />}
         </div>
       </div>
     </div>
