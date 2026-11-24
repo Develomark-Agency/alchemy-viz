@@ -69,15 +69,19 @@ export default defineView<typeof server>(({ api }) => {
       <Panel title="Token">
         <div className="flex flex-col gap-4">
           <KeyValueList items={items} />
-          <div className="flex items-center gap-2 rounded-md border border-line bg-surface-2 px-3 py-2">
-            <code className="min-w-0 flex-1 truncate font-mono text-xs">
-              {token ?? <span className="tracking-widest text-fg-subtle">••••••••••••••••••••••••</span>}
-            </code>
-            <IconButton label={shown ? "Hide" : "Reveal"} onClick={toggle} disabled={!t.hasToken || revealed.isPending}>
-              {shown ? <EyeOff /> : <Eye />}
-            </IconButton>
-            {token && <CopyButton text={token} label="Copy token" />}
-          </div>
+          {t.local
+            ? <p className="text-xs text-fg-subtle">No token: it belongs to a local database, which checks none. A deploy mints a real one.</p>
+            : (
+              <div className="flex items-center gap-2 rounded-md border border-line bg-surface-2 px-3 py-2">
+                <code className="min-w-0 flex-1 truncate font-mono text-xs">
+                  {token ?? <span className="tracking-widest text-fg-subtle">••••••••••••••••••••••••</span>}
+                </code>
+                <IconButton label={shown ? "Hide" : "Reveal"} onClick={toggle} disabled={!t.hasToken || revealed.isPending}>
+                  {shown ? <EyeOff /> : <Eye />}
+                </IconButton>
+                {token && <CopyButton text={token} label="Copy token" />}
+              </div>
+            )}
           <ErrorBanner error={revealed.error} />
         </div>
       </Panel>

@@ -17,7 +17,8 @@ function kindOf(r: ResourceInfo): Kind {
 
 async function tokenOf(ctx: HandlerContext, r: ResourceInfo) {
   const token = await reveal(ctx, r.attr?.token);
-  if(!token) throw new Error("This token isn't in state yet. It appears once the token is created.");
+  // A local provider's token is empty: a local libSQL server checks none.
+  if(token === undefined || (token === "" && r.mode !== "local")) throw new Error("This token isn't in state yet. It appears once the token is created.");
   return token;
 }
 
@@ -28,6 +29,8 @@ function seconds(value: unknown) {
 /** The HTTP endpoint of a database by name: from the stack when it's there, else the Platform API. */
 async function databaseUrl(ctx: HandlerContext, org: string, name: string) {
   const own = ctx.stack.resources.find(x => x.type === "Turso.Database" && x.attr?.name === name);
+  // A local database's URL is http://127.0.0.1:<port>, not https://<hostname>.
+  if(typeof own?.attr?.httpUrl === "string") return own.attr.httpUrl;
   const hostname = (own?.attr?.hostname as string | undefined)
     ?? (await platform<{ database: { Hostname: string } }>(ctx, `/organizations/${encodeURIComponent(org)}/databases/${encodeURIComponent(name)}`)).database.Hostname;
   return `https://${hostname}`;
@@ -63,7 +66,8 @@ export default defineServer({
 
     return {
       kind,
-      hasToken: !!token,
+      hasToken: token !== undefined && (token !== "" || r.mode === "local"),
+      local: r.mode === "local",
       organization: await orgOf(ctx, r),
       name: a.name as string | undefined,
       id: a.id as string | undefined,
