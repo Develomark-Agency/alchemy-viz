@@ -80,13 +80,28 @@ export function ProviderTooltip() {
         alignOffset={10}
         className="pointer-events-none z-50 flex items-center overflow-hidden rounded-md border border-line bg-surface px-2 py-1 text-xs font-medium shadow-popup origin-(--transform-origin) transition-[opacity,scale,left,top] [transition-duration:150ms,150ms,90ms,90ms] ease-(--ease-out) data-starting-style:scale-95 data-starting-style:opacity-0 data-ending-style:opacity-0 data-instant:[transition-property:left,top] motion-reduce:[transition-property:opacity]"
       >
-        {state => state.payload && <TipBody provider={state.payload} />}
+        {state => state.payload && <TipSession open={state.open} provider={state.payload} />}
       </TooltipContent>
     </Tooltip>
   );
 }
 
-const BLUR = "blur(3px)";
+const BLUR = "blur(6px)";
+
+/**
+ * Starts the label afresh each time the tooltip opens, so a new opening is
+ * sized to its own resource rather than easing from the last one it showed.
+ * Swaps while it stays open still animate.
+ */
+function TipSession({ open, provider }: { open: boolean, provider: ProviderInfo }) {
+  const [session, setSession] = useState(0);
+  const [wasOpen, setWasOpen] = useState(open);
+  if(open !== wasOpen) {
+    setWasOpen(open);
+    if(open) setSession(n => n + 1);
+  }
+  return <TipBody key={session} provider={provider} />;
+}
 
 /**
  * The tooltip's label. Moving to a resource from another provider cross-fades
@@ -117,9 +132,9 @@ function TipBody({ provider }: { provider: ProviderInfo }) {
           key={`${provider.id}:${provider.label}`}
           className={row}
           initial={{ opacity: 0, filter: reduce ? "blur(0px)" : BLUR }}
-          animate={{ opacity: 1, filter: "blur(0px)" }}
-          exit={{ opacity: 0, filter: reduce ? "blur(0px)" : BLUR }}
-          transition={{ duration: 0.18, ease: easeOut }}
+          animate={{ opacity: 1, filter: "blur(0px)", transition: { opacity: { duration: 0.2, ease: easeOut }, filter: { duration: 0.32, ease: easeOut } } }}
+          // Leaving is quicker: it's getting out of the way.
+          exit={{ opacity: 0, filter: reduce ? "blur(0px)" : BLUR, transition: { duration: 0.18, ease: easeOut } }}
         >
           {label}
         </motion.span>
