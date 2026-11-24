@@ -4,6 +4,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { Toaster } from "../../ui/index.ts";
 import "./app.css";
+import { ProviderTooltip } from "./providers.tsx";
 import { router } from "./router.tsx";
 import { applyStoredTheme } from "./theme.ts";
 
@@ -19,6 +20,7 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
+      <ProviderTooltip />
       <Toaster />
     </QueryClientProvider>
   </StrictMode>

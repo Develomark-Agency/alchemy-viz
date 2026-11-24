@@ -36,6 +36,17 @@
   --av-danger-soft: light-dark(#f0dcd7, #2c1213);
   --av-info: light-dark(#2f5aa8, #7cacf8);
   --av-info-soft: light-dark(#dce3ec, #111d33);
+
+  /* One hue per provider, for its mark. Providers without one use custom. */
+  --av-prov-cloudflare: light-dark(#c2570c, #f08a3c);
+  --av-prov-aws: light-dark(#3f5670, #8fa8c6);
+  --av-prov-gcp: light-dark(#2f5aa8, #7ca3e8);
+  --av-prov-fly: light-dark(#6246b8, #a58bff);
+  --av-prov-hetzner: light-dark(#b3262f, #ff6b73);
+  --av-prov-neon: light-dark(#178a63, #3ddc97);
+  --av-prov-turso: light-dark(#1b8191, #4cc9d8);
+  --av-prov-prisma: light-dark(#8a4a8f, #d08fd6);
+  --av-prov-custom: light-dark(#6d6f68, #9a9a9a);
 }
 
 :root[data-theme="light"] {

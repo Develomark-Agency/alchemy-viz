@@ -4,16 +4,22 @@ import type { ReactNode } from "react";
 import type { ResourceInfo } from "../../types.ts";
 import { EmptyState, JsonInspector, Page, Panel, Path, RunsOn } from "../../ui/index.ts";
 import { Graph } from "./graph.tsx";
+import { ProviderTip } from "./providers.tsx";
 import { ResourceIcon } from "./resource-icon.tsx";
 import { typeLabel } from "./type-label.ts";
 import { useStack } from "./use-stack.ts";
 
 function ResourceTile({ r }: { r: ResourceInfo }) {
   return (
-    <Link
-      to="/r/$fqn"
-      params={{ fqn: r.fqn }}
-      className="group flex items-center gap-3 rounded-lg border border-line bg-surface px-3 py-2.5 transition-[border-color,background-color] duration-150 ease-out hover:border-line-strong hover:bg-hover/40"
+    <ProviderTip
+      type={r.type}
+      render={(
+        <Link
+          to="/r/$fqn"
+          params={{ fqn: r.fqn }}
+          className="group flex items-center gap-3 rounded-lg border border-line bg-surface px-3 py-2.5 transition-[border-color,background-color] duration-150 ease-out hover:border-line-strong hover:bg-hover/40"
+        />
+      )}
     >
       <ResourceIcon type={r.type} size={30} />
       <span className="flex min-w-0 flex-1 flex-col">
@@ -22,7 +28,7 @@ function ResourceTile({ r }: { r: ResourceInfo }) {
       </span>
       <RunsOn mode={r.mode} className="text-xs" />
       <ChevronRight className="size-3.5 shrink-0 -translate-x-1 text-fg-subtle opacity-0 transition-[opacity,translate] duration-150 ease-out group-hover:translate-x-0 group-hover:opacity-100" />
-    </Link>
+    </ProviderTip>
   );
 }
 

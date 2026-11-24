@@ -5,6 +5,7 @@ import type { ResourceInfo } from "../../types.ts";
 import { EmptyState, ExternalLinkCard, LinkButton, Page, Panel, PropertyList, type PropertySection, PropertyValue, RunsOn, StatusText, Tabs, TabsList, TabsPanel, TabsTab, toProperties } from "../../ui/index.ts";
 import { LogsPanel } from "./logs-panel.tsx";
 import { ViewHost } from "./plugin-host.tsx";
+import { ProviderTip } from "./providers.tsx";
 import { ResourceIcon } from "./resource-icon.tsx";
 import { resourceRoute } from "./router.tsx";
 import { typeLabel } from "./type-label.ts";
@@ -114,7 +115,9 @@ export function ResourcePage() {
     <Page
       title={
         <span className="flex items-center gap-2.5">
-          <ResourceIcon type={resource.type} size={30} />
+          <ProviderTip type={resource.type} render={<span className="inline-flex" />}>
+            <ResourceIcon type={resource.type} size={30} />
+          </ProviderTip>
           {resource.logicalId}
         </span>
       }

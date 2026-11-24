@@ -25,12 +25,3 @@ export function typeMonogram(type: string) {
   const caps = last.match(/[A-Z0-9]/g)?.join("") ?? last;
   return (caps.length >= 2 ? caps : last).slice(0, 2).toUpperCase();
 }
-
-/** Stable hue per provider, for icon tints. */
-export function providerHue(type: string) {
-  const provider = type.split(".")[0] ?? type;
-  if(provider === "Cloudflare") return 22;
-  let h = 0;
-  for(const c of provider) h = (h * 31 + c.charCodeAt(0)) % 360;
-  return h;
-}

@@ -5,6 +5,7 @@ import { AnimatePresence, LayoutGroup, motion, type Transition, useReducedMotion
 import { useMemo, useState } from "react";
 import type { ResourceInfo, StackInfo } from "../../types.ts";
 import { AutoHeight, cn, easeOut, Kbd, SearchInput } from "../../ui/index.ts";
+import { ProviderTip } from "./providers.tsx";
 import { ResourceIcon } from "./resource-icon.tsx";
 import { typeLabel } from "./type-label.ts";
 
@@ -120,11 +121,16 @@ export function Megamenu({ stack, onNavigate }: { stack: StackInfo, onNavigate: 
                                   const current = pathname === `/r/${encodeURIComponent(r.fqn)}` || pathname === `/r/${r.fqn}`;
                                   return (
                                     <motion.li layout="position" key={r.fqn} {...presence}>
-                                      <NavigationMenuLink
-                                        current={current}
-                                        onClick={onNavigate}
-                                        render={<Link to="/r/$fqn" params={{ fqn: r.fqn }} />}
-                                        className="group/item flex items-center gap-3 rounded-[11px] p-1.5 pr-2 transition-colors duration-150 ease-out outline-offset-[-2px] hover:bg-hover aria-[current=page]:bg-hover"
+                                      <ProviderTip
+                                        type={r.type}
+                                        render={(
+                                          <NavigationMenuLink
+                                            current={current}
+                                            onClick={onNavigate}
+                                            render={<Link to="/r/$fqn" params={{ fqn: r.fqn }} />}
+                                            className="group/item flex items-center gap-3 rounded-[11px] p-1.5 pr-2 transition-colors duration-150 ease-out outline-offset-[-2px] hover:bg-hover aria-[current=page]:bg-hover"
+                                          />
+                                        )}
                                       >
                                         <span className="relative shrink-0">
                                           <ResourceIcon type={r.type} size={32} />
@@ -132,7 +138,7 @@ export function Megamenu({ stack, onNavigate }: { stack: StackInfo, onNavigate: 
                                             <span
                                               title={r.mode === "local" ? "Running locally" : "Cloud only"}
                                               className={cn(
-                                                "absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-surface transition-[box-shadow] group-hover/item:ring-hover group-aria-[current=page]/item:ring-hover",
+                                                "absolute -top-0.5 -right-0.5 size-2.5 rounded-full ring-2 ring-surface transition-[box-shadow] group-hover/item:ring-hover group-aria-[current=page]/item:ring-hover",
                                                 r.mode === "local" ? "bg-ok" : "bg-warn"
                                               )}
                                             />
@@ -145,7 +151,7 @@ export function Megamenu({ stack, onNavigate }: { stack: StackInfo, onNavigate: 
                                           </span>
                                           <span className="truncate text-[11.5px] leading-tight text-fg-subtle">{detail(r)}</span>
                                         </span>
-                                      </NavigationMenuLink>
+                                      </ProviderTip>
                                     </motion.li>
                                   );
                                 })}

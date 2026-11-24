@@ -7,6 +7,7 @@ import { Background, BackgroundVariant, Controls, type Edge, Handle, MarkerType,
 import ELK from "elkjs/lib/elk.bundled.js";
 import { useEffect, useMemo, useState } from "react";
 import type { ResourceInfo } from "../../types.ts";
+import { ProviderTip } from "./providers.tsx";
 import { ResourceIcon } from "./resource-icon.tsx";
 import { typeLabel } from "./type-label.ts";
 
@@ -19,7 +20,7 @@ type ResourceNode = Node<{ resource: ResourceInfo }, "resource">;
 function ResourceNodeView({ data }: NodeProps<ResourceNode>) {
   const r = data.resource;
   return (
-    <div className="flex h-full w-full cursor-pointer items-center gap-2.5 rounded-lg border border-line-strong bg-surface px-3 transition-colors hover:border-fg">
+    <ProviderTip type={r.type} render={<div className="flex h-full w-full cursor-pointer items-center gap-2.5 rounded-lg border border-line-strong bg-surface px-3 transition-colors hover:border-fg" />}>
       <Handle type="target" position={Position.Left} className="!size-1.5 !min-h-0 !min-w-0 !border-0 !bg-line-strong" />
       <ResourceIcon type={r.type} size={26} />
       <div className="min-w-0">
@@ -28,7 +29,7 @@ function ResourceNodeView({ data }: NodeProps<ResourceNode>) {
       </div>
       {r.mode === "local" && <span className="ml-auto size-1.5 shrink-0 rounded-full bg-ok" title="Running locally" />}
       <Handle type="source" position={Position.Right} className="!size-1.5 !min-h-0 !min-w-0 !border-0 !bg-line-strong" />
-    </div>
+    </ProviderTip>
   );
 }
 
