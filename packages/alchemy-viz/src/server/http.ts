@@ -17,6 +17,7 @@ import { readLogs } from "./logs.ts";
 import { type LoadedConfig, makeImportFromProject, viewsFor } from "./project.ts";
 import { registryPlugin, tailwindSourcesPlugin } from "./registry-plugin.ts";
 import { callHandler } from "./rpc.ts";
+import { makeRunner, RunConflict, RunInputError } from "./runner.ts";
 import { makeStackReader } from "./stack.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -153,6 +154,14 @@ export async function startServer(config: LoadedConfig) {
     return cached.value;
   }
 
+  const runner = makeRunner({
+    root: config.root,
+    entrypoint: config.entrypoint,
+    defaultStage: config.stage,
+    // A run changes state: don't serve the cached read.
+    onExit: () => (cached = undefined)
+  });
+
   function contextFor(stack: StackInfo, resource: ResourceInfo | undefined): HandlerContext {
     return { resource, stack, root: config.root, importFromProject };
   }
@@ -178,6 +187,16 @@ export async function startServer(config: LoadedConfig) {
         limit: Number(url.searchParams.get("limit") ?? 500)
       });
       return sendJson(res, 200, { lines });
+    }
+
+    // GET  /run → what is running. POST /run {action: "start", command, stage, confirm?} | {action: "stop"}.
+    if(path === "/run" && req.method === "GET") return sendJson(res, 200, await runner.status());
+    if(path === "/run" && req.method === "POST") {
+      const body = JSON.parse((await readBody(req)) || "{}");
+      if(body.action === "start") await runner.start(body);
+      else if(body.action === "stop") runner.stop();
+      else throw new RunInputError(`Unknown action '${String(body.action)}'.`);
+      return sendJson(res, 200, await runner.status());
     }
 
     // POST /rpc {target, handler, input} → JSON, or the handler's Response.
@@ -273,7 +292,8 @@ export async function startServer(config: LoadedConfig) {
         await api(req, res, url);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        if(!res.headersSent) sendJson(res, error instanceof InputError || error instanceof SyntaxError ? 400 : 500, { error: message });
+        const status = error instanceof RunConflict ? 409 : error instanceof InputError || error instanceof RunInputError || error instanceof SyntaxError ? 400 : 500;
+        if(!res.headersSent) sendJson(res, status, { error: message });
       }
       return;
     }
@@ -289,6 +309,7 @@ export async function startServer(config: LoadedConfig) {
     url: `http://localhost:${port}`,
     getStack,
     close: async () => {
+      await runner.close();
       await vite.close();
       await new Promise(ok => server.close(ok));
     }
