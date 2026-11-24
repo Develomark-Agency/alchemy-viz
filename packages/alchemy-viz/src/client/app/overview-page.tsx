@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 import type { ResourceInfo } from "../../types.ts";
-import { EmptyState, JsonInspector, Page, Panel, Path, RunsOn } from "../../ui/index.ts";
+import { cn, EmptyState, JsonInspector, Page, Panel, Path, RunsOn } from "../../ui/index.ts";
 import { Graph } from "./graph.tsx";
 import { ProviderTip } from "./providers.tsx";
 import { ResourceIcon } from "./resource-icon.tsx";
@@ -10,6 +10,8 @@ import { typeLabel } from "./type-label.ts";
 import { useStack } from "./use-stack.ts";
 
 function ResourceTile({ r }: { r: ResourceInfo }) {
+  const failed = /fail|error/i.test(r.status);
+  const blocked = failed && !!r.failedBy;
   return (
     <ProviderTip
       type={r.type}
@@ -17,7 +19,7 @@ function ResourceTile({ r }: { r: ResourceInfo }) {
         <Link
           to="/r/$fqn"
           params={{ fqn: r.fqn }}
-          className="group flex items-center gap-3 rounded-lg border border-line bg-surface px-3 py-2.5 transition-[border-color,background-color] duration-150 ease-out hover:border-line-strong hover:bg-hover/40"
+          className={cn("group flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-[border-color,background-color] duration-150 ease-out", failed ? cn("bg-danger-soft/50 hover:border-danger", blocked ? "border-dashed border-danger/30" : "border-danger/40") : "border-line bg-surface hover:border-line-strong hover:bg-hover/40")}
         />
       )}
     >
@@ -26,6 +28,7 @@ function ResourceTile({ r }: { r: ResourceInfo }) {
         <span className="truncate text-[13px] font-medium">{r.fqn}</span>
         <span className="truncate text-xs text-fg-subtle">{typeLabel(r.type).name}</span>
       </span>
+      {failed && <span className="size-1.5 shrink-0 rounded-full bg-danger" title={blocked ? `Blocked by ${r.failedBy}` : r.error ?? "Failed"} />}
       <RunsOn mode={r.mode} className="text-xs" />
       <ChevronRight className="size-3.5 shrink-0 -translate-x-1 text-fg-subtle opacity-0 transition-[opacity,translate] duration-150 ease-out group-hover:translate-x-0 group-hover:opacity-100" />
     </ProviderTip>

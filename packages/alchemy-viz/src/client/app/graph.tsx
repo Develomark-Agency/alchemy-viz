@@ -7,6 +7,7 @@ import { Background, BackgroundVariant, Controls, type Edge, Handle, MarkerType,
 import ELK from "elkjs/lib/elk.bundled.js";
 import { useEffect, useMemo, useState } from "react";
 import type { ResourceInfo } from "../../types.ts";
+import { cn } from "../../ui/index.ts";
 import { ProviderTip } from "./providers.tsx";
 import { ResourceIcon } from "./resource-icon.tsx";
 import { typeLabel } from "./type-label.ts";
@@ -23,15 +24,19 @@ type ResourceNode = Node<{ resource: ResourceInfo }, "resource">;
 
 function ResourceNodeView({ data }: NodeProps<ResourceNode>) {
   const r = data.resource;
+  const failed = /fail|error/i.test(r.status);
+  const blocked = failed && !!r.failedBy;
   return (
-    <ProviderTip type={r.type} render={<div className="flex h-full w-full cursor-pointer items-center gap-2.5 rounded-lg border border-line-strong bg-surface px-3 transition-colors hover:border-fg" />}>
+    <ProviderTip type={r.type} render={<div className={cn("flex h-full w-full cursor-pointer items-center gap-2.5 rounded-lg border px-3 transition-colors", failed ? cn("bg-danger-soft/50 hover:border-danger", blocked ? "border-dashed border-danger/30" : "border-danger/40") : "border-line-strong bg-surface hover:border-fg")} />}>
       <Handle type="target" position={Position.Left} className="!size-1.5 !min-h-0 !min-w-0 !border-0 !bg-line-strong" />
       <ResourceIcon type={r.type} size={26} />
       <div className="min-w-0">
         <div className="truncate text-[13px] font-medium">{r.logicalId}</div>
         <div className="truncate text-[11.5px] text-fg-subtle">{typeLabel(r.type).name}</div>
       </div>
-      {r.mode === "local" && <span className="ml-auto size-1.5 shrink-0 rounded-full bg-ok" title="Running locally" />}
+      {failed
+        ? <span className="ml-auto size-1.5 shrink-0 rounded-full bg-danger" title={blocked ? `Blocked by ${r.failedBy}` : r.error ?? "Failed"} />
+        : r.mode === "local" && <span className="ml-auto size-1.5 shrink-0 rounded-full bg-ok" title="Running locally" />}
       <Handle type="source" position={Position.Right} className="!size-1.5 !min-h-0 !min-w-0 !border-0 !bg-line-strong" />
     </ProviderTip>
   );
@@ -47,14 +52,19 @@ export function Graph({ resources }: { resources: ResourceInfo[] }) {
   const [fitted, setFitted] = useState<string>();
 
   const edges = useMemo<Edge[]>(() => {
-    const known = new Set(resources.map(r => r.fqn));
-    return resources.flatMap(r => r.downstream.filter(d => known.has(d)).map(d => ({
-      id: `${r.fqn}->${d}`,
-      source: r.fqn,
-      target: d,
-      style: { stroke: "var(--av-fg-subtle)", strokeWidth: 1 },
-      markerEnd: { type: MarkerType.ArrowClosed, color: "var(--av-fg-subtle)", width: 14, height: 14 }
-    })));
+    const byFqn = new Map(resources.map(r => [r.fqn, r]));
+    return resources.flatMap(r => r.downstream.filter(d => byFqn.has(d)).map(d => {
+      // Edges a failure travelled along, from the root cause outward.
+      const traced = byFqn.get(d)!.failedBy === r.fqn;
+      const color = traced ? "var(--av-danger)" : "var(--av-fg-subtle)";
+      return {
+        id: `${r.fqn}->${d}`,
+        source: r.fqn,
+        target: d,
+        style: { stroke: color, strokeWidth: traced ? 1.5 : 1 },
+        markerEnd: { type: MarkerType.ArrowClosed, color, width: 14, height: 14 }
+      };
+    }));
   }, [resources]);
 
   // Lay out again only when the graph's shape changes, not on every poll.

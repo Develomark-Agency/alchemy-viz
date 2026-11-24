@@ -2,7 +2,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
 import { views } from "virtual:alchemy-viz/registry";
 import type { ResourceInfo } from "../../types.ts";
-import { EmptyState, ErrorBanner, ExternalLinkCard, LinkButton, Page, Panel, PropertyList, type PropertySection, PropertyValue, RunsOn, StatusText, Tabs, TabsList, TabsPanel, TabsTab, toProperties } from "../../ui/index.ts";
+import { Banner, cn, EmptyState, ErrorBanner, ExternalLinkCard, LinkButton, Page, Panel, PropertyList, type PropertySection, PropertyValue, RunsOn, StatusText, Tabs, TabsList, TabsPanel, TabsTab, toProperties } from "../../ui/index.ts";
 import { LogsPanel } from "./logs-panel.tsx";
 import { ViewHost } from "./plugin-host.tsx";
 import { ProviderTip } from "./providers.tsx";
@@ -51,6 +51,57 @@ function bindingTarget(data: unknown, self: string, resources: ResourceInfo[]) {
  * column, so it reads as a single document instead of cards of different
  * sizes. The header above already says type, status and where it runs.
  */
+/**
+ * Why a resource failed. One that inherited a dependency's failure says so
+ * and traces the chain back to the resource whose own apply broke, which
+ * is where the error belongs.
+ */
+function FailureTrace({ resource, resources }: { resource: ResourceInfo, resources: ResourceInfo[] }) {
+  const byFqn = new Map(resources.map(r => [r.fqn, r]));
+  const chain = [resource];
+  for(let r: ResourceInfo | undefined = resource; r?.failedBy && chain.length < 50;) {
+    r = byFqn.get(r.failedBy);
+    if(r) chain.unshift(r);
+  }
+  if(chain.length === 1) return <ErrorBanner error={`Failed to apply: ${resource.error}`} className="mb-4" />;
+  return (
+    <Banner tone="danger" className="mb-4">
+      <div className="font-medium">
+        Not applied because {byFqn.get(resource.failedBy!)?.logicalId ?? resource.failedBy} failed
+      </div>
+      <ol className="mt-3 flex flex-col">
+        {chain.map((r, i) => {
+          const last = i === chain.length - 1;
+          return (
+            <li key={r.fqn} className="flex gap-3">
+              {/*
+                The marker column stretches to the row's height. The dot is centred in a
+                line-height box, and the connector runs from this dot's edge to the next
+                dot's edge (the spacing sits in the text column, so the marker column spans the whole row). Every size here is in rem (the dashboard scales its root font),
+                so the offsets stay exact: dot radius is 1.25 units, half a row box is 2.5.
+              */}
+              <div className="relative w-2.5 shrink-0">
+                <div className="flex h-5 items-center">
+                  <span className={cn("size-2.5 rounded-full border-[1.5px] border-danger", i === 0 ? "bg-danger" : "bg-danger-soft")} />
+                </div>
+                {!last && <span className="absolute top-3.75 -bottom-1.25 left-1/2 w-0.5 -translate-x-1/2 bg-danger/40" />}
+              </div>
+              <div className={cn("min-w-0 leading-5", !last && "pb-3.5")}>
+                {last
+                  ? <span className="font-medium">{r.logicalId} <span className="font-normal opacity-70">(this resource)</span></span>
+                  : <Link to="/r/$fqn" params={{ fqn: r.fqn }} className="font-medium underline underline-offset-2">{r.logicalId}</Link>}
+                <div className="opacity-80">
+                  {i === 0 ? r.error : `Blocked because ${chain[i - 1]!.logicalId} failed`}
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </Banner>
+  );
+}
+
 function Details({ resource, resources }: { resource: ResourceInfo, resources: ResourceInfo[] }) {
   const typeOf = new Map(resources.map(r => [r.fqn, r.type]));
   const sections: PropertySection[] = [
@@ -138,7 +189,7 @@ export function ResourcePage() {
         </LinkButton>
       )}
     >
-      {resource.error && <ErrorBanner error={`Failed to apply: ${resource.error}`} className="mb-4" />}
+      {resource.error && <FailureTrace resource={resource} resources={data.stack.resources} />}
       <Tabs
         value={active}
         // Keep the view's own URL state (D1's open console, a selected key)

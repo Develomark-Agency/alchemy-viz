@@ -15,6 +15,8 @@ export interface ResourceInfo<Attr = any, Props = any> {
   status: string,
   /** Why the last apply of this resource failed, when it did (state alone still says `creating`). */
   error?: string,
+  /** The failed dependency this resource's failure came from, when it didn't fail on its own. */
+  failedBy?: string,
   /** `local` when the resource runs in a local simulator, `live` when pinned to the cloud. */
   mode: "local" | "live" | undefined,
   props: Props,
