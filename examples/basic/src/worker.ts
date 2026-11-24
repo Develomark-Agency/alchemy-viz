@@ -44,6 +44,14 @@ export default {
         const instance = await env.ONBOARDING.create({ params: { email } });
         return Response.json({ id: instance.id, status: await instance.status() });
       }
+      case "/sandbox": {
+        // Only bound when the stack runs with EXAMPLE_CONTAINERS=1.
+        const sandbox = (env as { SANDBOX?: DurableObjectNamespace<Sandbox> }).SANDBOX;
+        if(!sandbox) return new Response("Run `EXAMPLE_CONTAINERS=1 bun run dev` to enable containers.", { status: 404 });
+        const name = url.searchParams.get("name") ?? "default";
+        const output = await sandbox.getByName(name).run(["sh", "-c", url.searchParams.get("cmd") ?? "uname -a; date"]);
+        return new Response(output);
+      }
       case "/secret": {
         // InferEnv has no mapping for Secrets Store secrets yet; the binding is a `SecretsStoreSecret`.
         const key = await (env.API_KEY as unknown as { get(): Promise<string> }).get();
@@ -102,5 +110,25 @@ export class Onboarding extends WorkflowEntrypoint<ApiEnv, { email: string }> {
     });
     await step.sleep("wait before nudge", "20 seconds");
     return await step.do("send nudge", async () => ({ nudged: user.email }));
+  }
+}
+
+/** Runs shell commands in its own Alpine container (with EXAMPLE_CONTAINERS=1). */
+export class Sandbox extends DurableObject {
+  async run(cmd: string[]) {
+    // Durable Object-managed containers (`images`, `exec`) are newer than these workers-types.
+    const container = this.ctx.container as unknown as {
+      running: boolean,
+      images: Record<string, string>,
+      start(options: { image: string, entrypoint: string[], enableInternet: boolean }): void,
+      exec(cmd: string[]): Promise<{ output(): Promise<{ stdout: ArrayBuffer, stderr: ArrayBuffer, exitCode: number }> }>
+    };
+    if(!container.running) {
+      container.start({ image: container.images.Shell!, entrypoint: ["sh", "-c", "echo sandbox up; while true; do echo heartbeat $(date +%T); sleep 2; done"], enableInternet: false });
+    }
+    const { stdout, stderr, exitCode } = await (await container.exec(cmd)).output();
+    console.log("sandbox ran", cmd.join(" "), `exit ${exitCode}`);
+    const decoder = new TextDecoder();
+    return decoder.decode(stdout) + decoder.decode(stderr);
   }
 }

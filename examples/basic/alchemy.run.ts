@@ -6,6 +6,10 @@ import * as Redacted from "effect/Redacted";
 import type { Counter } from "./src/worker.ts";
 import { FeatureFlags, FeatureFlagsProvider } from "./src/feature-flags.ts";
 
+// Opt in with EXAMPLE_CONTAINERS=1: local containers run in Docker.
+const withContainers = !!process.env.EXAMPLE_CONTAINERS;
+const Shell = Cloudflare.Container("Shell", { schedulingPolicy: "durable_object", image: "alpine:3.20" });
+
 const Api = Effect.gen(function* () {
   const cache = yield* Cloudflare.KV.Namespace("Cache");
   const db = yield* Cloudflare.D1.Database("AppDB", { migrations: "./migrations" });
@@ -28,6 +32,7 @@ const Api = Effect.gen(function* () {
       API_KEY: apiKey,
       COUNTER: Cloudflare.DurableObject<Counter>("Counter"),
       ONBOARDING: Cloudflare.Workflow<{ email: string }>("Onboarding", { className: "Onboarding" }),
+      ...(withContainers ? { SANDBOX: Cloudflare.DurableObject("Sandbox", { containers: [Shell] }) } : {}),
       GREETING: "hello from alchemy-viz"
     }
   });
