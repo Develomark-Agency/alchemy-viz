@@ -1,5 +1,7 @@
 import { createTooltipController, Tooltip, TooltipContent, TooltipTrigger } from "@ui-sdk/react/tooltip";
-import { cloneElement, type CSSProperties, type ReactElement, type ReactNode } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { cloneElement, type CSSProperties, type ReactElement, type ReactNode, useLayoutEffect, useRef, useState } from "react";
+import { easeOut } from "../../ui/easing.ts";
 
 /**
  * Who provides a resource, read from the first segment of its type
@@ -76,16 +78,51 @@ export function ProviderTooltip() {
         align="start"
         sideOffset={14}
         alignOffset={10}
-        className="pointer-events-none z-50 flex items-center gap-1.5 rounded-md border border-line bg-surface px-2 py-1 text-xs font-medium shadow-popup origin-(--transform-origin) transition-[opacity,scale,left,top] [transition-duration:150ms,150ms,90ms,90ms] ease-(--ease-out) data-starting-style:scale-95 data-starting-style:opacity-0 data-ending-style:opacity-0 data-instant:[transition-property:left,top] motion-reduce:[transition-property:opacity]"
+        className="pointer-events-none z-50 flex items-center overflow-hidden rounded-md border border-line bg-surface px-2 py-1 text-xs font-medium shadow-popup origin-(--transform-origin) transition-[opacity,scale,left,top] [transition-duration:150ms,150ms,90ms,90ms] ease-(--ease-out) data-starting-style:scale-95 data-starting-style:opacity-0 data-ending-style:opacity-0 data-instant:[transition-property:left,top] motion-reduce:[transition-property:opacity]"
       >
-        {state => state.payload && (
-          <>
-            <ProviderMark provider={state.payload} size={12} />
-            {state.payload.label}
-          </>
-        )}
+        {state => state.payload && <TipBody provider={state.payload} />}
       </TooltipContent>
     </Tooltip>
+  );
+}
+
+const BLUR = "blur(3px)";
+
+/**
+ * The tooltip's label. Moving to a resource from another provider cross-fades
+ * the old label out and the new one in, both through a slight blur, while the
+ * width eases to fit the new one instead of jumping.
+ */
+function TipBody({ provider }: { provider: ProviderInfo }) {
+  const reduce = useReducedMotion();
+  const sizer = useRef<HTMLSpanElement>(null);
+  const [width, setWidth] = useState<number>();
+  useLayoutEffect(() => setWidth(sizer.current?.offsetWidth), [provider.id, provider.label]);
+
+  const label = (
+    <>
+      <ProviderMark provider={provider} size={12} />
+      {provider.label}
+    </>
+  );
+  const row = "flex items-center gap-1.5 whitespace-nowrap";
+  return (
+    <motion.div className="relative" initial={false} animate={{ width }} transition={{ duration: reduce ? 0 : 0.24, ease: easeOut }}>
+      {/* Measures the new label at its natural width; the visible ones may be mid-fade. */}
+      <span ref={sizer} aria-hidden className={`invisible absolute top-0 left-0 ${row}`}>{label}</span>
+      <AnimatePresence initial={false} mode="popLayout">
+        <motion.span
+          key={`${provider.id}:${provider.label}`}
+          className={row}
+          initial={{ opacity: 0, filter: reduce ? "blur(0px)" : BLUR }}
+          animate={{ opacity: 1, filter: "blur(0px)" }}
+          exit={{ opacity: 0, filter: reduce ? "blur(0px)" : BLUR }}
+          transition={{ duration: 0.18, ease: easeOut }}
+        >
+          {label}
+        </motion.span>
+      </AnimatePresence>
+    </motion.div>
   );
 }
 
