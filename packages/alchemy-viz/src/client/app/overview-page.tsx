@@ -288,17 +288,17 @@ function OutputPanel({ output, home }: { output: Array<[string, unknown]>, home:
       aria-label="Stack output"
       className="absolute bottom-[58px] left-[12px] z-10 flex max-h-[calc(100%-168px)] w-[360px] max-w-[calc(100%-24px)] animate-in flex-col gap-[12px] overflow-y-auto overscroll-contain rounded-[10px] border border-line bg-surface p-[12px] shadow-popup duration-150 ease-out fade-in slide-in-from-bottom-1 lg:bottom-[66px] lg:left-[24px]"
     >
-      <h2 className="flex items-center gap-2 text-[13px] font-medium">
+      <h2 className="group/head flex items-center gap-2 text-[13px] font-medium">
         <Braces className="size-3.5 text-fg-subtle" strokeWidth={1.75} />
         Stack output
-        <CopyButton text={JSON.stringify(Object.fromEntries(output), null, 2)} label="Copy all stack output" className="ml-auto" />
+        <CopyButton text={JSON.stringify(Object.fromEntries(output), null, 2)} label="Copy all stack output" className="ml-auto transition-[color,background-color,scale,opacity] opacity-0 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 group-hover/head:opacity-100" />
       </h2>
       <dl className="flex flex-col gap-[12px]">
         {output.map(([k, v]) => (
-          <div key={k} className="flex min-w-0 flex-col gap-1">
+          <div key={k} className="group/out flex min-w-0 flex-col gap-1">
             <dt className="flex items-center justify-between gap-2 font-mono text-[11px] text-fg-subtle">
               {k}
-              <CopyButton text={outputText(v)} label={`Copy ${k}`} className="-my-1" />
+              <CopyButton text={outputText(v)} label={`Copy ${k}`} className="-my-1 transition-[color,background-color,scale,opacity] opacity-0 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 group-hover/out:opacity-100" />
             </dt>
             <dd className="flex min-w-0">
               <OutputValue value={v} home={home} />
