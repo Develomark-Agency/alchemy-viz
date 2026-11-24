@@ -54,6 +54,12 @@ export function cloudflare() {
         view: file("./queue/view.tsx")
       },
       {
+        type: "Cloudflare.Workflow",
+        title: "Instances",
+        server: file("./workflow/server.ts"),
+        view: file("./workflow/view.tsx")
+      },
+      {
         type: "Cloudflare.Worker",
         title: "Durable Objects",
         server: file("./durable-objects/server.ts"),
