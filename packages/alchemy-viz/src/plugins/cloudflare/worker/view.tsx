@@ -47,7 +47,9 @@ const typeLabels: Record<string, string> = {
   service: "Service",
   durable_object_namespace: "Durable Object",
   queue: "Queue",
-  workflow: "Workflow"
+  workflow: "Workflow",
+  secrets_store_secret: "Secret",
+  send_email: "Email"
 };
 
 function describeBindings(resource: ResourceInfo, stack: StackInfo): BindingRow[] {

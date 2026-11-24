@@ -1,10 +1,10 @@
 # alchemy-viz
 
-A local dashboard for [Alchemy v2](https://alchemy.run) stacks. It lets you browse and edit the resources `alchemy dev` is running: KV keys, D1 tables, R2 objects, and Workers (requests, cron triggers, logs). You can also add pages for your own resource types.
+A local dashboard for [Alchemy v2](https://alchemy.run) stacks. It lets you browse and edit the resources `alchemy dev` is running: KV keys, D1 tables, R2 objects, Durable Object storage, queue messages, Workflow instances, Secrets Store values, containers, sent email, and Workers (requests, cron triggers, logs). You can also add pages for your own resource types.
 
 ```
 packages/alchemy-viz   the library: CLI, server, dashboard, UI kit, built-in Cloudflare plugin
-examples/basic         a test Alchemy project (Worker + KV + D1 + R2 + a custom resource)
+examples/basic         a test Alchemy project (Worker + KV + D1 + R2 + Queue + Durable Object + Workflow + Secrets Store + email + a custom resource)
 ```
 
 ## Try it
@@ -36,13 +36,16 @@ It prints its URL: port 4700, or the next free port if 4700 is taken. The top ba
 ## How it works
 
 - **Resources** come from the stack's state store, read through Alchemy's own `Alchemist.State` API. The stack program never runs and no providers are touched, so it's safe to run next to `alchemy dev` and works with any state store the stack configures.
-- **Local data** (KV, D1, R2) is read and written through Alchemy's platform proxy, pointed at `.alchemy/local`. That's the same storage `alchemy dev`'s simulators use, so changes show up in running Workers right away.
+- **Local data** (KV, D1, R2, Secrets Store) is read and written through Alchemy's platform proxy, pointed at `.alchemy/local`. That's the same storage `alchemy dev`'s simulators use, so changes show up in running Workers right away.
+- **Queues and Workflows** are reached through the same proxy's dev registry, which routes a queue message or a workflow call to the `alchemy dev` process that consumes or runs it.
+- **Durable Object and Workflow storage** is read straight from the SQLite files workerd keeps under `.alchemy/local`, with writes refused. Stored values are in V8's serialization format, which alchemy-viz decodes itself.
+- **Containers** are found through the Docker CLI, by the labels and image tags `alchemy dev` gives them.
 - **Logs** come from `.alchemy/log/*.ndjson`. Each line carries the resource's FQN, so every local resource gets a log tab.
 - `alchemy`, `effect` and `@alchemy.run/cloudflare-runtime` are always loaded from **your project**, so their versions match the stack.
 - The dashboard is served by Vite running inside the CLI, so plugin views are compiled and hot-reloaded like any Vite app. Its cache lives in `.alchemy/alchemy-viz/` and is safe to delete.
 - The API only answers the dashboard itself. Requests with another Host, Origin or `Sec-Fetch-Site` are refused, and POSTs must be JSON. Other web pages you visit can't read or change your local data through it.
 
-Resources that only exist in the cloud show a link to the provider's dashboard instead of a local view.
+Resources that don't run in `alchemy dev` (deployed, or pinned to the cloud) link to their page in the provider's dashboard: an **Open in Cloudflare** button on every Cloudflare resource, and a link card in place of a local view.
 
 ## Stack
 
@@ -84,7 +87,8 @@ export default defineConfig({
 ```
 
 - `server` and `view` can be a path relative to the config file, an absolute path, a `file:` URL (`new URL("./view.tsx", import.meta.url)` in a published plugin), or a package specifier (`"my-plugin/views/table"`).
-- Listing `plugins` replaces the defaults, so include `cloudflare()` if you want it. When two plugins match the same type, the earlier one wins.
+- Listing `plugins` replaces the defaults, so include `cloudflare()` if you want it.
+- A resource gets one tab per view that matches its type, in plugin order. Give a view `when: resource => boolean` to show it only where it has something to show (the built-in Durable Objects tab appears only on Workers that host one).
 - The config is validated at startup, so a mistake names the field that's wrong.
 - CLI flags: `--stage` (or `ALCHEMY_STAGE`), `--port`, `--config`; `alchemy-viz --help` lists them. Set `VIZ_DEBUG=1` to see Vite's own output.
 
@@ -172,7 +176,13 @@ For your own markup, use Tailwind with the theme's tokens: `bg-surface`, `bg-sur
 | D1 database | Table browser with infinite scroll; SQL console with table/column autocomplete |
 | R2 bucket | Folder browser, previews (images, highlighted text), upload, download, delete |
 | Worker | URL, request tool, cron "Trigger now", bindings linked to their resources |
+| Worker → Durable Objects | Each class's stored objects; an object's key-value entries (decoded), SQL tables, and a read-only SQL console |
+| Worker → Sent email | Mail sent through `send_email` bindings, which `alchemy dev` stores instead of delivering: headers, HTML and text bodies, source, attachments |
+| Queue | Send JSON or text messages (with a delay, or as a batch) to the running consumer and watch its logs; settings, producers and consumers |
+| Workflow | Instances with live step timelines (attempts, sleeps, waits, results); start, pause, resume, restart, terminate, send events |
+| Secrets Store / Secret | Secrets with values hidden until revealed; add, change, delete; marks the ones the stack declares |
+| Container | The Docker containers running it (one per Durable Object instance) with their configuration and output, kept listed for a while after workerd removes them; stop |
 
 Every resource also gets **Details** (attributes, props, bindings, dependencies) and **Logs**.
 
-Not yet covered: Durable Objects, Workflows, Queues, email handlers.
+Local queues keep no backlog (messages go straight to the consumer), so there's nothing to browse; Durable Objects appear once they've written to storage, listed by id. Containers need Docker; the example enables one with `EXAMPLE_CONTAINERS=1 bun run dev`.
