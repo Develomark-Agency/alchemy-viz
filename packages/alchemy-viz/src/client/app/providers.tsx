@@ -104,42 +104,46 @@ function TipSession({ open, provider }: { open: boolean, provider: ProviderInfo 
 }
 
 /**
- * The tooltip's label. Moving to a resource from another provider cross-fades
- * the old label out and the new one in, both through a slight blur, while the
- * width eases to fit the new one instead of jumping.
+ * The tooltip's label. Changing `id` cross-fades the old label out and the new
+ * one in, both through a slight blur, while the width eases to fit the new one
+ * instead of jumping. Shared by every tooltip that swaps its label in place.
  */
-function TipBody({ provider }: { provider: ProviderInfo }) {
+export function TipMorph({ id, children }: { id: string, children: ReactNode }) {
   const reduce = useReducedMotion();
   const sizer = useRef<HTMLSpanElement>(null);
   const [width, setWidth] = useState<number>();
-  useLayoutEffect(() => setWidth(sizer.current?.offsetWidth), [provider.id, provider.label]);
+  useLayoutEffect(() => setWidth(sizer.current?.offsetWidth), [id]);
 
-  const label = (
-    <>
-      <ProviderMark provider={provider} size={12} className="shrink-0" />
-      {provider.label}
-    </>
-  );
   // w-max: while the box eases narrower, the label keeps its own width (and
   // its mark its size) and is clipped, instead of being squeezed to fit.
   const row = "flex w-max items-center gap-1.5 whitespace-nowrap";
   return (
     <motion.div className="relative" initial={false} animate={{ width }} transition={{ duration: reduce ? 0 : 0.24, ease: easeOut }}>
       {/* Measures the new label at its natural width; the visible ones may be mid-fade. */}
-      <span ref={sizer} aria-hidden className={`invisible absolute top-0 left-0 ${row}`}>{label}</span>
+      <span ref={sizer} aria-hidden className={`invisible absolute top-0 left-0 ${row}`}>{children}</span>
       <AnimatePresence initial={false} mode="popLayout">
         <motion.span
-          key={`${provider.id}:${provider.label}`}
+          key={id}
           className={row}
           initial={{ opacity: 0, filter: reduce ? "blur(0px)" : BLUR }}
           animate={{ opacity: 1, filter: "blur(0px)", transition: { opacity: { duration: 0.2, ease: easeOut }, filter: { duration: 0.32, ease: easeOut } } }}
           // Leaving is quicker: it's getting out of the way.
           exit={{ opacity: 0, filter: reduce ? "blur(0px)" : BLUR, transition: { duration: 0.18, ease: easeOut } }}
         >
-          {label}
+          {children}
         </motion.span>
       </AnimatePresence>
     </motion.div>
+  );
+}
+
+/** The graph's tooltip label: the provider's mark and name. */
+function TipBody({ provider }: { provider: ProviderInfo }) {
+  return (
+    <TipMorph id={`${provider.id}:${provider.label}`}>
+      <ProviderMark provider={provider} size={12} className="shrink-0" />
+      {provider.label}
+    </TipMorph>
   );
 }
 

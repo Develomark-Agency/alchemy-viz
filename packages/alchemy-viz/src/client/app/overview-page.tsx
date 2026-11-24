@@ -1,10 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import { Braces } from "lucide-react";
-import { type CSSProperties, useState, useSyncExternalStore } from "react";
+import { type CSSProperties, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ResourceInfo, StackInfo } from "../../types.ts";
 import { cn, EmptyState, JsonInspector, Loading, Page, Panel, Path } from "../../ui/index.ts";
 import { Graph, useGraphLayout } from "./graph.tsx";
-import { ProviderMark, providerColor, providerOf } from "./providers.tsx";
+import { type ProviderInfo, ProviderMark, providerColor, providerOf, TipMorph } from "./providers.tsx";
 import { ResourceIcon } from "./resource-icon.tsx";
 import { typeLabel } from "./type-label.ts";
 import { useStack } from "./use-stack.ts";
@@ -30,41 +30,30 @@ function isFailed(r: ResourceInfo) {
   return /fail|error/i.test(r.status);
 }
 
-function ResourceRow({ r }: { r: ResourceInfo }) {
+function ResourceRow({ r, onHover }: { r: ResourceInfo, onHover: (row: HTMLElement | null, r: ResourceInfo) => void }) {
   const failed = isFailed(r);
   const provider = providerOf(r.type);
   const tint = provider && provider.id !== "custom" ? providerColor(provider) : undefined;
-  const kind = typeLabel(r.type).name;
   return (
-    // No provider tooltip from the graph here (it trails the pointer over the rows beside it): the row has its own,
-    // anchored on the provider mark. The hover fill has no transition, so moving between rows switches at once
-    // instead of one fading out while the next fades in.
+    // The hover fill has no transition, so moving between rows switches at once instead of one fading out
+    // while the next fades in. The tooltip is the list's own (see ResourceList), not the graph's.
     <Link
       to="/r/$fqn"
       params={{ fqn: r.fqn }}
+      onPointerEnter={event => onHover(event.currentTarget, r)}
+      onPointerLeave={() => onHover(null, r)}
+      onFocus={event => onHover(event.currentTarget, r)}
+      onBlur={() => onHover(null, r)}
       // The row warms to its provider's color on hover; with no provider it uses the plain hover fill.
       style={{ "--row-tint": tint ? `color-mix(in srgb, ${tint} 9%, transparent)` : "var(--av-hover)" } as CSSProperties}
-      className="group flex h-[44px] shrink-0 items-center gap-[12px] rounded-md px-[6px] hover:bg-(--row-tint) focus-visible:bg-(--row-tint)"
+      className="flex h-[44px] shrink-0 items-center gap-[12px] rounded-md px-[6px] hover:bg-(--row-tint) focus-visible:bg-(--row-tint)"
     >
       <ResourceIcon type={r.type} size={32} badge={false} />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="truncate text-[13px] leading-4 font-medium">{r.fqn}</span>
         <span className="flex min-w-0 items-center gap-1.5 text-[11.5px] leading-4 text-fg-subtle">
-          {provider && (
-            <span className="relative flex shrink-0">
-              <ProviderMark provider={provider} size={12} />
-              {/* Opens over the row's own mark: its mark sits exactly on this one (1px border + 6px padding in, centered). */}
-              <span
-                aria-hidden
-                className="pointer-events-none absolute top-1/2 left-[-7px] z-10 flex h-[20px] -translate-y-1/2 items-center gap-1.5 rounded-md border border-line bg-surface px-[6px] text-[12px] font-medium whitespace-nowrap text-fg opacity-0 shadow-popup transition-opacity duration-100 group-hover:opacity-100 group-hover:delay-300 group-hover:duration-150 group-focus-visible:opacity-100"
-              >
-                <ProviderMark provider={provider} size={12} />
-                {provider.label}
-                <span className="font-normal text-fg-subtle">{kind}</span>
-              </span>
-            </span>
-          )}
-          <span className="truncate">{kind}</span>
+          {provider && <span data-provider-mark="" className="flex shrink-0"><ProviderMark provider={provider} size={12} /></span>}
+          <span className="truncate">{typeLabel(r.type).name}</span>
         </span>
       </span>
       <span
@@ -72,6 +61,110 @@ function ResourceRow({ r }: { r: ResourceInfo }) {
         title={failed ? r.failedBy ? `Blocked by ${r.failedBy}` : r.error ?? "Failed" : r.mode === "local" ? "Running locally" : undefined}
       />
     </Link>
+  );
+}
+
+interface ListTip {
+  key: string,
+  provider: ProviderInfo,
+  kind: string,
+  /** Where the tooltip's top-left goes, in the viewport. */
+  left: number,
+  top: number
+}
+
+// The tooltip's mark has to land on the row's, so the tooltip is placed from the mark outward:
+// 1px border + 6px padding in from the left, and 1px border + 4px padding + half the 16px first line up.
+const TIP_MARK_INSET = 1 + 6;
+const TIP_MARK_ABOVE = 1 + 4 + 8;
+
+/**
+ * Every resource, with one tooltip shared by all rows. Hovering a row opens it (after a beat) over that row's
+ * provider mark; moving to another row slides it there and morphs its label, instead of opening a new one.
+ */
+function ResourceList({ resources, empty }: { resources: ResourceInfo[], empty: string }) {
+  const [tip, setTip] = useState<ListTip>();
+  const [open, setOpen] = useState(false);
+  // Whether the last change moved an open tooltip (it slides) or opened a closed one (it appears in place).
+  const [slide, setSlide] = useState(false);
+  // New each time it opens, so an opening is sized to its own row rather than easing from the last one's.
+  const [session, setSession] = useState(0);
+  const isOpen = useRef(false);
+  const timers = useRef<{ open?: number, close?: number }>({});
+  useEffect(() => () => {
+    window.clearTimeout(timers.current.open);
+    window.clearTimeout(timers.current.close);
+  }, []);
+
+  function hide() {
+    window.clearTimeout(timers.current.open);
+    window.clearTimeout(timers.current.close);
+    timers.current.close = window.setTimeout(() => {
+      isOpen.current = false;
+      setOpen(false);
+    }, 60);
+  }
+
+  function onHover(row: HTMLElement | null, r: ResourceInfo) {
+    const provider = providerOf(r.type);
+    const mark = row?.querySelector("[data-provider-mark]");
+    if(!row || !provider || !mark) return hide();
+    window.clearTimeout(timers.current.close);
+    const m = mark.getBoundingClientRect();
+    const next: ListTip = {
+      key: r.fqn,
+      provider,
+      kind: typeLabel(r.type).name,
+      left: m.left - TIP_MARK_INSET,
+      top: m.top + m.height / 2 - TIP_MARK_ABOVE
+    };
+    if(isOpen.current) {
+      setSlide(true);
+      setTip(next);
+      return;
+    }
+    window.clearTimeout(timers.current.open);
+    timers.current.open = window.setTimeout(() => {
+      isOpen.current = true;
+      setSlide(false);
+      setSession(n => n + 1);
+      setTip(next);
+      setOpen(true);
+    }, 300);
+  }
+
+  return (
+    <nav
+      aria-label="Resources"
+      onScroll={hide}
+      className="flex max-h-72 min-h-0 flex-col overflow-y-auto overscroll-contain px-[6px] pb-[6px] [scrollbar-width:thin] lg:max-h-none"
+    >
+      {resources.length > 0
+        ? resources.map(r => <ResourceRow key={r.fqn} r={r} onHover={onHover} />)
+        : <p className="px-2 py-3 text-[13px] text-fg-subtle">{empty}</p>}
+      <div
+        aria-hidden
+        style={tip && { left: tip.left, top: tip.top }}
+        className={cn(
+          "pointer-events-none fixed z-50 overflow-hidden rounded-md border border-line bg-surface px-[6px] py-[4px] text-[12px] font-medium whitespace-nowrap text-fg shadow-popup ease-(--ease-out)",
+          // It appears where it opens, and only slides while it stays open; it leaves faster than it arrives.
+          open ? slide ? "[transition:opacity_150ms,left_90ms,top_90ms]" : "[transition:opacity_150ms]" : "[transition:opacity_100ms]",
+          open ? "opacity-100" : "opacity-0"
+        )}
+      >
+        {tip && (
+          <TipMorph key={session} id={tip.key}>
+            <span className="flex flex-col">
+              <span className="flex h-[16px] items-center gap-[6px]">
+                <ProviderMark provider={tip.provider} size={12} className="shrink-0" />
+                {tip.provider.label}
+              </span>
+              <span className="pl-[18px] text-[11.5px] leading-[14px] font-normal text-fg-subtle">{tip.kind}</span>
+            </span>
+          </TipMorph>
+        )}
+      </div>
+    </nav>
   );
 }
 
@@ -127,11 +220,7 @@ function ResourcesPanel({ stack }: { stack: StackInfo }) {
           </button>
         ))}
       </div>
-      <nav aria-label="Resources" className="flex max-h-72 min-h-0 flex-col overflow-y-auto overscroll-contain px-[6px] pb-[6px] [scrollbar-width:thin] lg:max-h-none">
-        {shown.length > 0
-          ? shown.map(r => <ResourceRow key={r.fqn} r={r} />)
-          : <p className="px-2 py-3 text-[13px] text-fg-subtle">Nothing {filter === "local" ? "running locally" : "in the cloud"}.</p>}
-      </nav>
+      <ResourceList key={filter} resources={shown} empty={`Nothing ${filter === "local" ? "running locally" : "in the cloud"}.`} />
     </aside>
   );
 }
