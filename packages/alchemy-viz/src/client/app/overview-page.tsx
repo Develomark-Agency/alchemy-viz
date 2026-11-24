@@ -8,6 +8,7 @@ import { cn, EmptyState, JsonInspector, Kbd, Loading, Page, Panel, Path } from "
 import { useOpenPalette } from "./command-palette.tsx";
 import { Graph, useGraphLayout } from "./graph.tsx";
 import { ProviderMark, providerColor, providerOf, ProviderTip } from "./providers.tsx";
+import { ModeIcon, placeText } from "./mode-icon.tsx";
 import { matchesMode, type ModeFilter, modeOf } from "./resource-mode.ts";
 import { ResourceIcon } from "./resource-icon.tsx";
 import { typeLabel } from "./type-label.ts";
@@ -38,13 +39,15 @@ function ResourceRow({ r, onHighlight }: { r: ResourceInfo, onHighlight: (fqn: s
   const provider = providerOf(r.type);
   const kind = typeLabel(r.type).name;
   const tint = provider && provider.id !== "custom" ? providerColor(provider) : undefined;
-  const status = failed ? "bg-danger" : modeOf(r) === "local" ? "bg-ok" : undefined;
+  const mode = modeOf(r);
+  const text = placeText(r, failed);
   return (
     // The hover fill has no transition, so moving between rows switches at once instead of one fading out
     // while the next fades in. The tooltip is the page's shared one, trailing the pointer like the graph's.
     <ProviderTip
       type={r.type}
       kind={kind}
+      place={{ mode, text, failed }}
       render={(
         <Link
           to="/r/$fqn"
@@ -68,13 +71,8 @@ function ResourceRow({ r, onHighlight }: { r: ResourceInfo, onHighlight: (fqn: s
           <span className="truncate">{kind}</span>
         </span>
       </span>
-      {/* A lane of its own at the right edge, level with the name, so the dots line up down the list. */}
-      {status && (
-        <span
-          className={cn("mt-[10px] mr-[4px] size-[6px] shrink-0 self-start rounded-full", status)}
-          title={failed ? r.failedBy ? `Blocked by ${r.failedBy}` : r.error ?? "Failed" : "Running locally"}
-        />
-      )}
+      {/* A lane of its own at the right edge, level with the name, so the marks line up down the list. The tooltip says what it means. */}
+      <ModeIcon mode={mode} className={cn("mt-[6px] mr-[4px] self-start", failed ? "text-danger" : "text-fg-subtle")} />
     </ProviderTip>
   );
 }

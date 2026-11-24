@@ -2,6 +2,9 @@ import { createTooltipController, Tooltip, TooltipContent, TooltipTrigger } from
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { cloneElement, type CSSProperties, type ReactElement, type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { easeOut } from "../../ui/easing.ts";
+import { cn } from "../../ui/index.ts";
+import { ModeIcon } from "./mode-icon.tsx";
+import type { modeOf } from "./resource-mode.ts";
 
 /**
  * Who provides a resource, read from the first segment of its type
@@ -58,7 +61,9 @@ export function ProviderMark({ provider, size = 12, className }: { provider: Pro
 /** What the tooltip says: the provider, and, where the hovered thing is one resource among a list, its kind on a second line. */
 interface TipPayload {
   provider: ProviderInfo,
-  kind?: string
+  kind?: string,
+  /** Where the resource runs and how it is doing, as a last line. */
+  place?: { mode: ReturnType<typeof modeOf>, text: string, failed: boolean }
 }
 
 // One tooltip for every resource on the page: it trails the pointer, so two
@@ -144,7 +149,7 @@ function TipMorph({ id, children }: { id: string, children: ReactNode }) {
 }
 
 /** The tooltip's label: the provider's mark and name, with the kind under them when there is one. */
-function TipBody({ payload: { provider, kind } }: { payload: TipPayload }) {
+function TipBody({ payload: { provider, kind, place } }: { payload: TipPayload }) {
   const name = (
     <span className="flex items-center gap-1.5">
       <ProviderMark provider={provider} size={12} className="shrink-0" />
@@ -152,12 +157,18 @@ function TipBody({ payload: { provider, kind } }: { payload: TipPayload }) {
     </span>
   );
   return (
-    <TipMorph id={`${provider.id}:${provider.label}:${kind ?? ""}`}>
+    <TipMorph id={`${provider.id}:${provider.label}:${kind ?? ""}:${place?.text ?? ""}`}>
       {kind
         ? (
           <span className="flex flex-col gap-0.5">
             {name}
             <span className="font-normal text-fg-subtle">{kind}</span>
+            {place && (
+              <span className={cn("flex items-center gap-1.5 font-normal text-fg-subtle", place.failed && "text-danger")}>
+                <ModeIcon mode={place.mode} size={12} />
+                {place.text}
+              </span>
+            )}
           </span>
         )
         : name}
@@ -169,10 +180,10 @@ function TipBody({ payload: { provider, kind } }: { payload: TipPayload }) {
  * Hovering what it wraps names the provider in the shared tooltip. Pass the
  * element to render (a link, a div) as `render`; it keeps its own props.
  */
-export function ProviderTip({ type, kind, render, children }: { type: string, /** Names the resource's kind under the provider, for lists where that tells rows apart. */ kind?: string, render: ReactElement<any>, children?: ReactNode }) {
+export function ProviderTip({ type, kind, place, render, children }: { type: string, /** Names the resource's kind under the provider, for lists where that tells rows apart. */ kind?: string, /** Adds where it runs as a last line. */ place?: TipPayload["place"], render: ReactElement<any>, children?: ReactNode }) {
   const provider = providerOf(type);
   if(!provider) return cloneElement(render, undefined, children);
-  const payload: TipPayload = { provider, kind };
+  const payload: TipPayload = { provider, kind, place };
   return (
     <TooltipTrigger
       controller={tooltip}
