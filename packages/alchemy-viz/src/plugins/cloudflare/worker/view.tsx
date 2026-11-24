@@ -49,7 +49,8 @@ const typeLabels: Record<string, string> = {
   queue: "Queue",
   workflow: "Workflow",
   secrets_store_secret: "Secret",
-  send_email: "Email"
+  send_email: "Email",
+  hyperdrive: "Hyperdrive"
 };
 
 function describeBindings(resource: ResourceInfo, stack: StackInfo): BindingRow[] {

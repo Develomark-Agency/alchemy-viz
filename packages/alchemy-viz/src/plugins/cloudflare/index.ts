@@ -7,6 +7,7 @@ import { definePlugin } from "../../index.ts";
 import type { ResourceInfo } from "../../types.ts";
 import { namespacesOf } from "./durable-objects/namespaces.ts";
 import { dashboardLink, isLocalResource } from "./links.ts";
+import { closeHyperdriveClients } from "./hyperdrive/server.ts";
 import { disposeLocalRuntime, localSpec } from "./runtime.ts";
 
 function file(path: string) {
@@ -76,6 +77,14 @@ export function cloudflare() {
         view: file("./container/view.tsx")
       },
       {
+        type: "Cloudflare.Hyperdrive",
+        title: "Database",
+        server: file("./hyperdrive/server.ts"),
+        view: file("./hyperdrive/view.tsx"),
+        // Only a config with a `dev` origin runs locally.
+        when: r => !!r.attr?.dev?.host
+      },
+      {
         type: "Cloudflare.Worker",
         title: "Durable Objects",
         server: file("./durable-objects/server.ts"),
@@ -92,6 +101,8 @@ export function cloudflare() {
     ],
     link: dashboardLink,
     isLocal,
-    setup: () => disposeLocalRuntime
+    setup: () => async () => {
+      await Promise.all([disposeLocalRuntime(), closeHyperdriveClients()]);
+    }
   });
 }

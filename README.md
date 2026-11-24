@@ -39,6 +39,7 @@ It prints its URL: port 4700, or the next free port if 4700 is taken. The top ba
 - **Local data** (KV, D1, R2, Secrets Store) is read and written through Alchemy's platform proxy, pointed at `.alchemy/local`. That's the same storage `alchemy dev`'s simulators use, so changes show up in running Workers right away.
 - **Queues and Workflows** are reached through the same proxy's dev registry, which routes a queue message or a workflow call to the `alchemy dev` process that consumes or runs it.
 - **Durable Object and Workflow storage** is read straight from the SQLite files workerd keeps under `.alchemy/local`, with writes refused. Stored values are in V8's serialization format, which alchemy-viz decodes itself.
+- **Hyperdrive** has no local proxy: Workers connect straight to its `dev` origin, so the dashboard does too, with Bun's built-in Postgres/MySQL client and the credentials in local state. The password stays on the server.
 - **Containers** are found through the Docker CLI, by the labels and image tags `alchemy dev` gives them.
 - **Logs** come from `.alchemy/log/*.ndjson`. Each line carries the resource's FQN, so every local resource gets a log tab.
 - `alchemy`, `effect` and `@alchemy.run/cloudflare-runtime` are always loaded from **your project**, so their versions match the stack.
@@ -181,8 +182,9 @@ For your own markup, use Tailwind with the theme's tokens: `bg-surface`, `bg-sur
 | Queue | Send JSON or text messages (with a delay, or as a batch) to the running consumer and watch its logs; settings, producers and consumers |
 | Workflow | Instances with live step timelines (attempts, sleeps, waits, results); start, pause, resume, restart, terminate, send events |
 | Secrets Store / Secret | Secrets with values hidden until revealed; add, change, delete; marks the ones the stack declares |
+| Hyperdrive | Connects to the config's `dev` origin (Postgres or MySQL) as Workers do in `alchemy dev`; connection status, table browser and SQL console |
 | Container | The Docker containers running it (one per Durable Object instance) with their configuration and output, kept listed for a while after workerd removes them; stop |
 
 Every resource also gets **Details** (attributes, props, bindings, dependencies) and **Logs**.
 
-Local queues keep no backlog (messages go straight to the consumer), so there's nothing to browse; Durable Objects appear once they've written to storage, listed by id. Containers need Docker; the example enables one with `EXAMPLE_CONTAINERS=1 bun run dev`.
+Local queues keep no backlog (messages go straight to the consumer), so there's nothing to browse; Durable Objects appear once they've written to storage, listed by id. Containers need Docker; the example enables one with `EXAMPLE_CONTAINERS=1 bun run dev`. For Hyperdrive, start the example's seeded Postgres in Docker with `bun run db:up` (`bun run db:down` removes it), then run `EXAMPLE_HYPERDRIVE=1 bun run dev`.
