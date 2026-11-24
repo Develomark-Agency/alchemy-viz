@@ -4,7 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { type CSSProperties, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ResourceInfo, StackInfo } from "../../types.ts";
 import { easeOut } from "../../ui/easing.ts";
-import { cn, EmptyState, JsonInspector, Kbd, Loading, Page, Panel, Path } from "../../ui/index.ts";
+import { cn, CopyButton, EmptyState, JsonInspector, Kbd, Loading, Page, Panel, Path } from "../../ui/index.ts";
 import { useOpenPalette } from "./command-palette.tsx";
 import { Graph, useGraphLayout } from "./graph.tsx";
 import { ProviderMark, providerColor, providerOf, ProviderTip } from "./providers.tsx";
@@ -276,6 +276,11 @@ function OutputValue({ value, home }: { value: unknown, home: string }) {
   return <JsonInspector value={value} label="Output" openDepth={1} />;
 }
 
+/** What lands on the clipboard for one output: strings as they are, anything else as JSON. */
+function outputText(value: unknown) {
+  return typeof value === "string" ? value : (JSON.stringify(value, null, 2) ?? String(value));
+}
+
 function OutputPanel({ output, home }: { output: Array<[string, unknown]>, home: string }) {
   return (
     <section
@@ -286,11 +291,15 @@ function OutputPanel({ output, home }: { output: Array<[string, unknown]>, home:
       <h2 className="flex items-center gap-2 text-[13px] font-medium">
         <Braces className="size-3.5 text-fg-subtle" strokeWidth={1.75} />
         Stack output
+        <CopyButton text={JSON.stringify(Object.fromEntries(output), null, 2)} label="Copy all stack output" className="ml-auto" />
       </h2>
       <dl className="flex flex-col gap-[12px]">
         {output.map(([k, v]) => (
           <div key={k} className="flex min-w-0 flex-col gap-1">
-            <dt className="font-mono text-[11px] text-fg-subtle">{k}</dt>
+            <dt className="flex items-center justify-between gap-2 font-mono text-[11px] text-fg-subtle">
+              {k}
+              <CopyButton text={outputText(v)} label={`Copy ${k}`} className="-my-1" />
+            </dt>
             <dd className="flex min-w-0">
               <OutputValue value={v} home={home} />
             </dd>
