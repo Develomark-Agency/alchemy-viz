@@ -1,10 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import { Braces } from "lucide-react";
-import { useState, useSyncExternalStore } from "react";
+import { type CSSProperties, useState, useSyncExternalStore } from "react";
 import type { ResourceInfo, StackInfo } from "../../types.ts";
 import { cn, EmptyState, JsonInspector, Loading, Page, Panel, Path } from "../../ui/index.ts";
 import { Graph, useGraphLayout } from "./graph.tsx";
-import { ProviderTip } from "./providers.tsx";
+import { ProviderMark, providerColor, providerOf, ProviderTip } from "./providers.tsx";
 import { ResourceIcon } from "./resource-icon.tsx";
 import { typeLabel } from "./type-label.ts";
 import { useStack } from "./use-stack.ts";
@@ -32,14 +32,29 @@ function isFailed(r: ResourceInfo) {
 
 function ResourceRow({ r }: { r: ResourceInfo }) {
   const failed = isFailed(r);
+  const provider = providerOf(r.type);
+  const tint = provider && provider.id !== "custom" ? providerColor(provider) : undefined;
   return (
     <ProviderTip
       type={r.type}
-      render={<Link to="/r/$fqn" params={{ fqn: r.fqn }} className="flex h-[32px] items-center gap-[12px] rounded-md px-[6px] transition-colors duration-150 ease-out hover:bg-hover" />}
+      render={(
+        <Link
+          to="/r/$fqn"
+          params={{ fqn: r.fqn }}
+          // The row warms to its provider's color on hover; with no provider it uses the plain hover fill.
+          style={{ "--row-tint": tint ? `color-mix(in srgb, ${tint} 9%, transparent)` : "var(--av-hover)" } as CSSProperties}
+          className="flex h-[44px] shrink-0 items-center gap-[12px] rounded-md px-[6px] transition-colors duration-150 ease-out hover:bg-(--row-tint)"
+        />
+      )}
     >
-      <ResourceIcon type={r.type} size={20} />
-      <span className="truncate text-[13px] font-medium">{r.fqn}</span>
-      <span className="ml-auto min-w-0 shrink-3 truncate pl-2 text-[11.5px] text-fg-subtle">{typeLabel(r.type).name}</span>
+      <ResourceIcon type={r.type} size={32} badge={false} />
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="truncate text-[13px] leading-4 font-medium">{r.fqn}</span>
+        <span className="flex min-w-0 items-center gap-1.5 text-[11.5px] leading-4 text-fg-subtle">
+          {provider && <ProviderMark provider={provider} size={12} className="shrink-0" />}
+          <span className="truncate">{typeLabel(r.type).name}</span>
+        </span>
+      </span>
       <span
         className={cn("size-1.5 shrink-0 rounded-full", failed ? "bg-danger" : r.mode === "local" ? "bg-ok" : "bg-transparent")}
         title={failed ? r.failedBy ? `Blocked by ${r.failedBy}` : r.error ?? "Failed" : r.mode === "local" ? "Running locally" : undefined}
@@ -100,7 +115,7 @@ function ResourcesPanel({ stack }: { stack: StackInfo }) {
           </button>
         ))}
       </div>
-      <nav aria-label="Resources" className="flex max-h-72 min-h-0 flex-col overflow-y-auto overscroll-contain px-[6px] pb-[6px] lg:max-h-none">
+      <nav aria-label="Resources" className="flex max-h-72 min-h-0 flex-col overflow-y-auto overscroll-contain px-[6px] pb-[6px] [scrollbar-width:thin] lg:max-h-none">
         {shown.length > 0
           ? shown.map(r => <ResourceRow key={r.fqn} r={r} />)
           : <p className="px-2 py-3 text-[13px] text-fg-subtle">Nothing {filter === "local" ? "running locally" : "in the cloud"}.</p>}

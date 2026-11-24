@@ -30,7 +30,7 @@ const BADGE_MIN = 26;
  * Color is reserved for the provider and for state; types with no provider
  * (and custom ones) stay neutral.
  */
-export function ResourceIcon({ type, size = 20, className }: { type: string, size?: number, className?: string }) {
+export function ResourceIcon({ type, size = 20, badge: showBadge = size >= BADGE_MIN, className }: { type: string, size?: number, /** Whether to badge the provider mark on the corner; by default only when the icon is big enough. */ badge?: boolean, className?: string }) {
   const Icon = iconFor(type);
   const provider = providerOf(type);
   const badge = Math.round(size * 0.52);
@@ -52,7 +52,7 @@ export function ResourceIcon({ type, size = 20, className }: { type: string, siz
       }}
     >
       <Icon style={{ width: Math.round(size * 0.55), height: Math.round(size * 0.55) }} strokeWidth={1.75} />
-      {provider && size >= BADGE_MIN && (
+      {provider && showBadge && (
         <span
           className="absolute -right-1 -bottom-1 flex items-center justify-center rounded-full border border-line bg-surface"
           style={{ width: badge, height: badge }}
