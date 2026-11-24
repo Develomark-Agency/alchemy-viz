@@ -55,9 +55,15 @@ export function ProviderMark({ provider, size = 12, className }: { provider: Pro
     : <svg aria-hidden viewBox="0 0 24 24" style={style} className={className}><rect x="4" y="4" width="16" height="16" rx="4" fill="none" stroke="currentColor" strokeWidth="2.5" /></svg>;
 }
 
+/** What the tooltip says: the provider, and, where the hovered thing is one resource among a list, its kind on a second line. */
+interface TipPayload {
+  provider: ProviderInfo,
+  kind?: string
+}
+
 // One tooltip for every resource on the page: it trails the pointer, so two
 // are never open at once and moving to the next resource just changes its text.
-const tooltip = createTooltipController<ProviderInfo>();
+const tooltip = createTooltipController<TipPayload>();
 
 // Opening it by hand (to move it with the pointer) detaches it from hover, so
 // it is closed by hand too: shortly after the pointer leaves a resource, unless
@@ -72,7 +78,7 @@ const pointerAnchor = { getBoundingClientRect: () => new DOMRect(pointer.x, poin
 export function ProviderTooltip() {
   return (
     <Tooltip controller={tooltip} delay={350}>
-      <TooltipContent<ProviderInfo>
+      <TooltipContent<TipPayload>
         anchor={pointerAnchor}
         side="bottom"
         align="start"
@@ -80,7 +86,7 @@ export function ProviderTooltip() {
         alignOffset={10}
         className="pointer-events-none z-50 flex items-center overflow-hidden rounded-md border border-line bg-surface px-2 py-1 text-xs font-medium shadow-popup origin-(--transform-origin) transition-[opacity,scale,left,top] [transition-duration:150ms,150ms,90ms,90ms] ease-(--ease-out) data-starting-style:scale-95 data-starting-style:opacity-0 data-ending-style:opacity-0 data-instant:[transition-property:left,top] motion-reduce:[transition-property:opacity]"
       >
-        {state => state.payload && <TipSession open={state.open} provider={state.payload} />}
+        {state => state.payload && <TipSession open={state.open} payload={state.payload} />}
       </TooltipContent>
     </Tooltip>
   );
@@ -93,14 +99,14 @@ const BLUR = "blur(6px)";
  * sized to its own resource rather than easing from the last one it showed.
  * Swaps while it stays open still animate.
  */
-function TipSession({ open, provider }: { open: boolean, provider: ProviderInfo }) {
+function TipSession({ open, payload }: { open: boolean, payload: TipPayload }) {
   const [session, setSession] = useState(0);
   const [wasOpen, setWasOpen] = useState(open);
   if(open !== wasOpen) {
     setWasOpen(open);
     if(open) setSession(n => n + 1);
   }
-  return <TipBody key={session} provider={provider} />;
+  return <TipBody key={session} payload={payload} />;
 }
 
 /**
@@ -108,7 +114,7 @@ function TipSession({ open, provider }: { open: boolean, provider: ProviderInfo 
  * one in, both through a slight blur, while the width eases to fit the new one
  * instead of jumping. Shared by every tooltip that swaps its label in place.
  */
-export function TipMorph({ id, children }: { id: string, children: ReactNode }) {
+function TipMorph({ id, children }: { id: string, children: ReactNode }) {
   const reduce = useReducedMotion();
   const sizer = useRef<HTMLSpanElement>(null);
   const [width, setWidth] = useState<number>();
@@ -137,12 +143,24 @@ export function TipMorph({ id, children }: { id: string, children: ReactNode }) 
   );
 }
 
-/** The graph's tooltip label: the provider's mark and name. */
-function TipBody({ provider }: { provider: ProviderInfo }) {
-  return (
-    <TipMorph id={`${provider.id}:${provider.label}`}>
+/** The tooltip's label: the provider's mark and name, with the kind under them when there is one. */
+function TipBody({ payload: { provider, kind } }: { payload: TipPayload }) {
+  const name = (
+    <span className="flex items-center gap-1.5">
       <ProviderMark provider={provider} size={12} className="shrink-0" />
       {provider.label}
+    </span>
+  );
+  return (
+    <TipMorph id={`${provider.id}:${provider.label}:${kind ?? ""}`}>
+      {kind
+        ? (
+          <span className="flex flex-col gap-0.5">
+            {name}
+            <span className="font-normal text-fg-subtle">{kind}</span>
+          </span>
+        )
+        : name}
     </TipMorph>
   );
 }
@@ -151,13 +169,14 @@ function TipBody({ provider }: { provider: ProviderInfo }) {
  * Hovering what it wraps names the provider in the shared tooltip. Pass the
  * element to render (a link, a div) as `render`; it keeps its own props.
  */
-export function ProviderTip({ type, render, children }: { type: string, render: ReactElement<any>, children?: ReactNode }) {
+export function ProviderTip({ type, kind, render, children }: { type: string, /** Names the resource's kind under the provider, for lists where that tells rows apart. */ kind?: string, render: ReactElement<any>, children?: ReactNode }) {
   const provider = providerOf(type);
   if(!provider) return cloneElement(render, undefined, children);
+  const payload: TipPayload = { provider, kind };
   return (
     <TooltipTrigger
       controller={tooltip}
-      payload={provider}
+      payload={payload}
       render={render}
       onPointerEnter={() => clearTimeout(closeTimer)}
       onPointerLeave={() => {
@@ -168,7 +187,7 @@ export function ProviderTip({ type, render, children }: { type: string, render: 
         pointer.x = event.clientX;
         pointer.y = event.clientY;
         // The tooltip only re-reads its anchor when asked, so ask on every move.
-        if(tooltip.isOpen()) void tooltip.open({ payload: provider, anchor: pointerAnchor });
+        if(tooltip.isOpen()) void tooltip.open({ payload, anchor: pointerAnchor });
       }}
     >
       {children}

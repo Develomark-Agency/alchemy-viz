@@ -1,10 +1,11 @@
 import { Link } from "@tanstack/react-router";
-import { Braces, ChevronUp, Layers, type LucideIcon } from "lucide-react";
-import { type CSSProperties, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Braces, ChevronUp, Layers, type LucideIcon, Search } from "lucide-react";
+import { type CSSProperties, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ResourceInfo, StackInfo } from "../../types.ts";
-import { cn, EmptyState, JsonInspector, Loading, Page, Panel, Path } from "../../ui/index.ts";
+import { cn, EmptyState, JsonInspector, Kbd, Loading, Page, Panel, Path } from "../../ui/index.ts";
+import { useOpenPalette } from "./command-palette.tsx";
 import { Graph, useGraphLayout } from "./graph.tsx";
-import { type ProviderInfo, ProviderMark, providerColor, providerOf, TipMorph } from "./providers.tsx";
+import { ProviderMark, providerColor, providerOf, ProviderTip } from "./providers.tsx";
 import { ResourceIcon } from "./resource-icon.tsx";
 import { typeLabel } from "./type-label.ts";
 import { useStack } from "./use-stack.ts";
@@ -29,138 +30,92 @@ function isFailed(r: ResourceInfo) {
   return /fail|error/i.test(r.status);
 }
 
-function ResourceRow({ r, onHover }: { r: ResourceInfo, onHover: (row: HTMLElement | null, r: ResourceInfo) => void }) {
+function ResourceRow({ r, onHighlight }: { r: ResourceInfo, onHighlight: (fqn: string | undefined) => void }) {
   const failed = isFailed(r);
   const provider = providerOf(r.type);
+  const kind = typeLabel(r.type).name;
   const tint = provider && provider.id !== "custom" ? providerColor(provider) : undefined;
+  const status = failed ? "bg-danger" : r.mode === "local" ? "bg-ok" : undefined;
   return (
     // The hover fill has no transition, so moving between rows switches at once instead of one fading out
-    // while the next fades in. The tooltip is the list's own (see ResourceList), not the graph's.
-    <Link
-      to="/r/$fqn"
-      params={{ fqn: r.fqn }}
-      onPointerEnter={event => onHover(event.currentTarget, r)}
-      onPointerLeave={() => onHover(null, r)}
-      onFocus={event => onHover(event.currentTarget, r)}
-      onBlur={() => onHover(null, r)}
-      // The row warms to its provider's color on hover; with no provider it uses the plain hover fill.
-      style={{ "--row-tint": tint ? `color-mix(in srgb, ${tint} 9%, transparent)` : "var(--av-hover)" } as CSSProperties}
-      className="flex h-[44px] shrink-0 items-center gap-[12px] rounded-md px-[6px] hover:bg-(--row-tint) focus-visible:bg-(--row-tint)"
+    // while the next fades in. The tooltip is the page's shared one, trailing the pointer like the graph's.
+    <ProviderTip
+      type={r.type}
+      kind={kind}
+      render={(
+        <Link
+          to="/r/$fqn"
+          params={{ fqn: r.fqn }}
+          onPointerEnter={() => onHighlight(r.fqn)}
+          onPointerLeave={() => onHighlight(undefined)}
+          onFocus={() => onHighlight(r.fqn)}
+          onBlur={() => onHighlight(undefined)}
+          // The row warms to its provider's color on hover; with no provider it uses the plain hover fill.
+          style={{ "--row-tint": tint ? `color-mix(in srgb, ${tint} 9%, transparent)` : "var(--av-hover)" } as CSSProperties}
+          className="flex h-[44px] shrink-0 items-center gap-[12px] rounded-md px-[6px] hover:bg-(--row-tint) focus-visible:bg-(--row-tint)"
+        />
+      )}
     >
       <ResourceIcon type={r.type} size={32} badge={false} />
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="truncate text-[13px] leading-4 font-medium">{r.fqn}</span>
-        <span className="flex min-w-0 items-center gap-1.5 text-[11.5px] leading-4 text-fg-subtle">
-          {provider && <span data-provider-mark="" className="flex shrink-0"><ProviderMark provider={provider} size={12} /></span>}
-          <span className="truncate">{typeLabel(r.type).name}</span>
+      <span className="flex min-w-0 flex-1 flex-col gap-[2px]">
+        {/* Line heights are in px and roomy: a tight box under `truncate` clips descenders (the g in Onboarding). */}
+        <span className="flex min-w-0 items-center gap-[8px]">
+          <span className="truncate text-[13px] leading-[18px] font-medium">{r.fqn}</span>
+          {status && (
+            <span
+              className={cn("size-[6px] shrink-0 rounded-full", status)}
+              title={failed ? r.failedBy ? `Blocked by ${r.failedBy}` : r.error ?? "Failed" : "Running locally"}
+            />
+          )}
+        </span>
+        <span className="flex min-w-0 items-center gap-[6px] text-[11.5px] leading-[16px] text-fg-subtle">
+          {provider && <ProviderMark provider={provider} size={12} className="shrink-0" />}
+          <span className="truncate">{kind}</span>
         </span>
       </span>
-      <span
-        className={cn("size-1.5 shrink-0 rounded-full", failed ? "bg-danger" : r.mode === "local" ? "bg-ok" : "bg-transparent")}
-        title={failed ? r.failedBy ? `Blocked by ${r.failedBy}` : r.error ?? "Failed" : r.mode === "local" ? "Running locally" : undefined}
-      />
-    </Link>
+    </ProviderTip>
   );
 }
 
-interface ListTip {
-  key: string,
-  provider: ProviderInfo,
-  kind: string,
-  /** Where the tooltip's top-left goes, in the viewport. */
-  left: number,
-  top: number
-}
-
-// The tooltip's mark has to land on the row's, so the tooltip is placed from the mark outward:
-// 1px border + 6px padding in from the left, and 1px border + 2px padding + half the 16px line up.
-const TIP_MARK_INSET = 1 + 6;
-const TIP_MARK_ABOVE = 1 + 2 + 8;
-
 /**
- * Every resource, with one tooltip shared by all rows. Hovering a row opens it (after a beat) over that row's
- * provider mark; moving to another row slides it there and morphs its label, instead of opening a new one.
+ * Every resource. Its height follows its content, eased, so filtering grows and shrinks the list instead of
+ * snapping it; when there are more rows than room, it scrolls.
  */
-function ResourceList({ resources, empty, onHighlight }: { resources: ResourceInfo[], empty: string, /** Called with the fqn of the row the pointer or focus is on, and with nothing when it leaves. */ onHighlight: (fqn: string | undefined) => void }) {
-  const [tip, setTip] = useState<ListTip>();
-  const [open, setOpen] = useState(false);
-  // Whether the last change moved an open tooltip (it slides) or opened a closed one (it appears in place).
-  const [slide, setSlide] = useState(false);
-  // New each time it opens, so an opening is sized to its own row rather than easing from the last one's.
-  const [session, setSession] = useState(0);
-  const isOpen = useRef(false);
-  const timers = useRef<{ open?: number, close?: number }>({});
-  useEffect(() => () => {
-    window.clearTimeout(timers.current.open);
-    window.clearTimeout(timers.current.close);
+function ResourceList({ resources, empty, onHighlight }: { resources: ResourceInfo[], empty: string, onHighlight: (fqn: string | undefined) => void }) {
+  const content = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState<number>();
+  // Scrolling is off while the height eases: a list growing into its new size would flash a scrollbar.
+  const [settled, setSettled] = useState(true);
+  const timer = useRef<number>(undefined);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  useLayoutEffect(() => {
+    const el = content.current;
+    if(!el) return;
+    const observer = new ResizeObserver(() => {
+      setHeight(previous => {
+        if(previous !== undefined && previous !== el.offsetHeight) {
+          setSettled(false);
+          window.clearTimeout(timer.current);
+          timer.current = window.setTimeout(() => setSettled(true), 220);
+        }
+        return el.offsetHeight;
+      });
+    });
+    observer.observe(el);
+    setHeight(el.offsetHeight);
+    return () => observer.disconnect();
   }, []);
-
-  function hide() {
-    window.clearTimeout(timers.current.open);
-    window.clearTimeout(timers.current.close);
-    timers.current.close = window.setTimeout(() => {
-      isOpen.current = false;
-      setOpen(false);
-    }, 60);
-  }
-
-  function onHover(row: HTMLElement | null, r: ResourceInfo) {
-    onHighlight(row ? r.fqn : undefined);
-    const provider = providerOf(r.type);
-    const mark = row?.querySelector("[data-provider-mark]");
-    if(!row || !provider || !mark) return hide();
-    window.clearTimeout(timers.current.close);
-    const m = mark.getBoundingClientRect();
-    const next: ListTip = {
-      key: r.fqn,
-      provider,
-      kind: typeLabel(r.type).name,
-      left: m.left - TIP_MARK_INSET,
-      top: m.top + m.height / 2 - TIP_MARK_ABOVE
-    };
-    if(isOpen.current) {
-      setSlide(true);
-      setTip(next);
-      return;
-    }
-    window.clearTimeout(timers.current.open);
-    timers.current.open = window.setTimeout(() => {
-      isOpen.current = true;
-      setSlide(false);
-      setSession(n => n + 1);
-      setTip(next);
-      setOpen(true);
-    }, 300);
-  }
 
   return (
     <nav
       aria-label="Resources"
-      onScroll={hide}
-      className="flex min-h-0 flex-col overflow-y-auto overscroll-contain px-[6px] pb-[6px] [scrollbar-width:thin]"
+      style={{ height }}
+      className={cn("min-h-0 overscroll-contain [scrollbar-width:thin] transition-[height] duration-200 ease-(--ease-out) motion-reduce:transition-none", settled ? "overflow-y-auto" : "overflow-y-hidden")}
     >
-      {resources.length > 0
-        ? resources.map(r => <ResourceRow key={r.fqn} r={r} onHover={onHover} />)
-        : <p className="px-2 py-3 text-[13px] text-fg-subtle">{empty}</p>}
-      <div
-        aria-hidden
-        style={tip && { left: tip.left, top: tip.top }}
-        className={cn(
-          "pointer-events-none fixed z-50 overflow-hidden rounded-md border border-line bg-surface px-[6px] py-[2px] text-[12px] font-medium whitespace-nowrap text-fg shadow-popup ease-(--ease-out)",
-          // It appears where it opens, and only slides while it stays open; it leaves faster than it arrives.
-          open ? slide ? "[transition:opacity_150ms,left_90ms,top_90ms]" : "[transition:opacity_150ms]" : "[transition:opacity_100ms]",
-          open ? "opacity-100" : "opacity-0"
-        )}
-      >
-        {tip && (
-          <TipMorph key={session} id={tip.key}>
-            <span className="flex h-[16px] items-center gap-[6px]">
-              <ProviderMark provider={tip.provider} size={12} className="shrink-0" />
-              {tip.provider.label}
-              <span className="font-normal text-fg-subtle">{tip.kind}</span>
-            </span>
-          </TipMorph>
-        )}
+      <div ref={content} className="flex flex-col p-[6px]">
+        {resources.length > 0
+          ? resources.map(r => <ResourceRow key={r.fqn} r={r} onHighlight={onHighlight} />)
+          : <p className="px-2 py-3 text-[13px] text-fg-subtle">{empty}</p>}
       </div>
     </nav>
   );
@@ -206,8 +161,26 @@ function StackChip({ stack }: { stack: StackInfo }) {
   );
 }
 
-/** Every resource, filterable. Pointing at one lights it up in the graph. */
-function ResourcesPopover({ resources, onHighlight }: { resources: ResourceInfo[], onHighlight: (fqn: string | undefined) => void }) {
+/** Looks like the top bar's search; it opens the full one. */
+function SearchField({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex h-8 w-full items-center gap-2 rounded-md border border-line px-2.5 text-fg-subtle shadow-xs transition-colors hover:border-line-strong hover:text-fg-muted"
+    >
+      <Search className="size-[14px] shrink-0" />
+      <span className="flex-1 text-left text-[13px]">Search resources…</span>
+      <Kbd>⌘K</Kbd>
+    </button>
+  );
+}
+
+/**
+ * Every resource, filterable. Pointing at one lights it up in the graph. It grows up from the pill, so the
+ * controls sit at its bottom, where they stay put as the list above them changes height.
+ */
+function ResourcesPopover({ resources, onHighlight, onSearch }: { resources: ResourceInfo[], onHighlight: (fqn: string | undefined) => void, onSearch: () => void }) {
   const [filter, setFilter] = useState<Filter>("all");
   const shown = resources.filter(r => filter === "all" || r.mode === filter);
   return (
@@ -216,20 +189,23 @@ function ResourcesPopover({ resources, onHighlight }: { resources: ResourceInfo[
       aria-label="Resources"
       className="absolute bottom-[58px] left-[12px] z-10 flex max-h-[calc(100%-168px)] w-[296px] max-w-[calc(100%-24px)] animate-in flex-col overflow-clip rounded-[10px] border border-line bg-surface shadow-popup duration-150 ease-out fade-in slide-in-from-bottom-1 lg:bottom-[66px] lg:left-[24px]"
     >
-      <div className="flex gap-1.5 px-[12px] pt-[12px] pb-[6px]">
-        {filters.map(f => (
-          <button
-            key={f.id}
-            type="button"
-            aria-pressed={filter === f.id}
-            onClick={() => setFilter(f.id)}
-            className={cn("h-6 rounded-full border px-2.5 text-xs font-medium transition-colors", filter === f.id ? "border-line-strong bg-surface-2 text-fg" : "border-line text-fg-muted hover:bg-hover hover:text-fg")}
-          >
-            {f.label}
-          </button>
-        ))}
+      <ResourceList resources={shown} onHighlight={onHighlight} empty={`Nothing ${filter === "local" ? "running locally" : "in the cloud"}.`} />
+      <div className="flex shrink-0 flex-col gap-2 px-[12px] pt-[6px] pb-[12px]">
+        <SearchField onClick={onSearch} />
+        <div className="flex gap-1.5">
+          {filters.map(f => (
+            <button
+              key={f.id}
+              type="button"
+              aria-pressed={filter === f.id}
+              onClick={() => setFilter(f.id)}
+              className={cn("h-6 rounded-full border px-2.5 text-xs font-medium transition-colors", filter === f.id ? "border-line-strong bg-surface-2 text-fg" : "border-line text-fg-muted hover:bg-hover hover:text-fg")}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
       </div>
-      <ResourceList key={filter} resources={shown} onHighlight={onHighlight} empty={`Nothing ${filter === "local" ? "running locally" : "in the cloud"}.`} />
     </section>
   );
 }
@@ -294,6 +270,7 @@ export function OverviewPage() {
   // The graph fills the page, so wait for its layout: it paints finished instead of popping in.
   const layout = useGraphLayout(stack.resources);
   const wide = useWide();
+  const openPalette = useOpenPalette();
   const [panel, setPanel] = useState<"resources" | "output">();
   // The resource the list is pointing at; the graph lights it up and keeps it in view.
   const [highlight, setHighlight] = useState<string>();
@@ -337,6 +314,12 @@ export function OverviewPage() {
   }
   if(!layout) return <div className="px-4 py-5 sm:px-8 sm:py-7"><Loading /></div>;
 
+  // The popover's search box is the top bar's: it opens the full one, and the popover gets out of its way.
+  function search() {
+    setPanel(undefined);
+    openPalette();
+  }
+
   function toggle(next: "resources" | "output") {
     setPanel(current => current === next ? undefined : next);
   }
@@ -347,7 +330,7 @@ export function OverviewPage() {
       <div className="relative h-[75dvh] min-h-[480px] max-lg:overflow-clip max-lg:rounded-[10px] max-lg:border max-lg:border-line lg:absolute lg:inset-0 lg:h-auto lg:min-h-0">
         <Graph resources={stack.resources} layout={layout} leftInset={wide && panel === "resources" ? LIST_INSET : 0} highlight={highlight} />
         <StackChip stack={stack} />
-        {panel === "resources" && <ResourcesPopover resources={stack.resources} onHighlight={setHighlight} />}
+        {panel === "resources" && <ResourcesPopover resources={stack.resources} onHighlight={setHighlight} onSearch={search} />}
         {panel === "output" && output && <OutputPanel output={output} home={stack.home} />}
         <div className="absolute bottom-[12px] left-[12px] z-10 flex gap-2 lg:bottom-[24px] lg:left-[24px]">
           <DockButton icon={Layers} label="Resources" count={stack.resources.length} open={panel === "resources"} onClick={() => toggle("resources")} />

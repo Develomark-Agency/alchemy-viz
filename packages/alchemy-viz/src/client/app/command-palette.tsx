@@ -2,7 +2,7 @@ import { Command, CommandEmpty, CommandGroup, CommandGroupLabel, CommandInput, C
 import { Dialog, DialogContent, DialogTitle } from "@ui-sdk/react/dialog";
 import { useNavigate } from "@tanstack/react-router";
 import { Activity, LayoutGrid, Play, Rocket, ScrollText, Search, Square, Trash2 } from "lucide-react";
-import { useEffect } from "react";
+import { createContext, useContext, useEffect } from "react";
 import { ResourceIcon } from "./resource-icon.tsx";
 import { useRun } from "./run-controls.tsx";
 import { typeLabel } from "./type-label.ts";
@@ -10,6 +10,14 @@ import { useStack } from "./use-stack.ts";
 
 const item = "flex h-9 cursor-default items-center gap-2.5 rounded-md px-2.5 text-[13px] outline-none select-none data-highlighted:bg-hover [&>svg]:size-3.5 [&>svg]:text-fg-subtle";
 const groupLabel = "px-2.5 pt-2 pb-1 text-[11px] font-medium text-fg-subtle";
+
+const OpenPaletteContext = createContext<() => void>(() => {});
+export const OpenPaletteProvider = OpenPaletteContext.Provider;
+
+/** Opens the palette, for a search box that lives on a page. */
+export function useOpenPalette() {
+  return useContext(OpenPaletteContext);
+}
 
 /** ⌘K: jump to any resource or page. */
 export function CommandPalette({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void }) {
