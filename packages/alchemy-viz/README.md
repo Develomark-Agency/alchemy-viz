@@ -4,12 +4,12 @@ A local dashboard for [Alchemy v2](https://alchemy.run) stacks. Browse and edit 
 
 ## Install
 
-In an Alchemy v2 project:
+Each [GitHub Release](https://github.com/Develomark-Agency/alchemy-viz/releases) has the package tarball attached. Install it into an Alchemy v2 project from its URL, with `X.Y.Z` being the version (each release's notes show its exact command):
 
 ```bash
-npm install --save-dev alchemy-viz
+bun add --dev https://github.com/Develomark-Agency/alchemy-viz/releases/download/vX.Y.Z/alchemy-viz-X.Y.Z.tgz
 # or
-bun add --dev alchemy-viz
+npm install --save-dev https://github.com/Develomark-Agency/alchemy-viz/releases/download/vX.Y.Z/alchemy-viz-X.Y.Z.tgz
 ```
 
 It runs on **Node 22.22.3, 24.11.1 or newer**, or **Bun**. `alchemy` and `effect` are peer dependencies: alchemy-viz uses your project's copies, so they match your stack.

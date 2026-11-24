@@ -7,7 +7,8 @@
  * build fails here rather than in CI, then starts the Release workflow on
  * GitHub and follows it. The workflow does the rest: bumps the version,
  * checks, builds and smoke-tests it, commits and tags the release on main,
- * publishes to npm and creates the GitHub Release. Nothing is committed or
+ * and creates the GitHub Release with the package tarball attached, which
+ * is what people install. Nothing is committed or
  * tagged unless every check passes. When it finishes, local main is pulled
  * up to the release commit.
  *
@@ -101,7 +102,7 @@ step(`Following run ${runId}`);
 const succeeded = run("gh", ["run", "watch", runId, "--exit-status", "--interval", "5"]);
 if(!succeeded) {
   const url = capture("gh", ["run", "view", runId, "--json", "url", "--jq", ".url"]);
-  fail(`The release failed: ${url}\nIf it failed after tagging (publishing to npm or creating the GitHub Release), re-run the failed jobs there; they pick up the existing tag.`);
+  fail(`The release failed: ${url}\nIf it failed after tagging (creating the GitHub Release), re-run the failed jobs there; they pick up the existing tag.`);
 }
 
 step(`Pulling the release commit into ${BRANCH}`);
@@ -109,5 +110,7 @@ run("git", ["pull", "--ff-only", "--tags", "origin", BRANCH]);
 
 const releaseUrl = capture("gh", ["release", "view", `v${next}`, "--json", "url", "--jq", ".url"]);
 console.log(`\n✓ Released alchemy-viz ${next}`);
-console.log(`  npm:    https://www.npmjs.com/package/alchemy-viz/v/${next}`);
-console.log(`  GitHub: ${releaseUrl}`);
+const tarball = `${releaseUrl.replace("/releases/tag/", "/releases/download/")}/alchemy-viz-${next}.tgz`;
+console.log(`  ${releaseUrl}`);
+console.log(`\n  Install: bun add --dev ${tarball}`);
+console.log(`       or: npm install --save-dev ${tarball}`);

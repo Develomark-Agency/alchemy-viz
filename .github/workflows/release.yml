@@ -4,12 +4,10 @@
 # prepare: bumps the version, checks, builds and smoke-tests it, then
 #          commits and tags the release on main. Nothing is pushed unless
 #          every check passes.
-# publish: publishes the tagged commit to npm (trusted publishing, no token)
-#          and creates the GitHub Release with the tarball attached. It
+# release: packs the tagged commit and creates the GitHub Release with the
+#          tarball attached; that tarball's URL is what people install. It
 #          checks out the tag, so if it fails, "Re-run failed jobs" retries
-#          just this part; steps already done are skipped.
-#
-# npm's trusted publisher for alchemy-viz must name this file (release.yml).
+#          just this part.
 name: Release
 
 on:
@@ -77,13 +75,12 @@ jobs:
         if: ${{ !env.ACT }}
         run: git push --atomic origin HEAD:main "v${{ steps.bump.outputs.version }}"
 
-  publish:
-    name: Publish to npm, create the GitHub Release
+  release:
+    name: Create the GitHub Release
     needs: prepare
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      id-token: write
     env:
       VERSION: ${{ needs.prepare.outputs.version }}
       GH_TOKEN: ${{ github.token }}
@@ -97,32 +94,21 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 24
-          registry-url: https://registry.npmjs.org
-          package-manager-cache: false
-      # Trusted publishing needs npm 11.5.1 or newer.
-      - run: npm install --global npm@latest
       - run: bun install --frozen-lockfile
 
+      # Builds dist/ (the prepack script) and writes alchemy-viz-<version>.tgz.
       - name: Pack
         working-directory: packages/alchemy-viz
         run: npm pack
-
-      - name: Publish to npm
-        if: ${{ !env.ACT }}
-        working-directory: packages/alchemy-viz
-        run: |
-          if npm view "alchemy-viz@$VERSION" version >/dev/null 2>&1; then
-            echo "alchemy-viz@$VERSION is already on npm."
-          else
-            npm publish
-          fi
 
       - name: Create the GitHub Release
         if: ${{ !env.ACT }}
         run: |
           tarball="packages/alchemy-viz/alchemy-viz-$VERSION.tgz"
+          url="https://github.com/${{ github.repository }}/releases/download/v$VERSION/alchemy-viz-$VERSION.tgz"
+          printf '## Install\n\n```bash\nbun add --dev %s\n# or\nnpm install --save-dev %s\n```\n' "$url" "$url" > notes.md
           if gh release view "v$VERSION" >/dev/null 2>&1; then
             gh release upload "v$VERSION" "$tarball" --clobber
           else
-            gh release create "v$VERSION" "$tarball" --verify-tag --generate-notes --title "v$VERSION"
+            gh release create "v$VERSION" "$tarball" --verify-tag --generate-notes --notes-file notes.md --title "v$VERSION"
           fi

@@ -4,14 +4,15 @@ A local dashboard for [Alchemy v2](https://alchemy.run) stacks. It lets you brow
 
 ## Install
 
-In an Alchemy v2 project:
+Each [GitHub Release](https://github.com/Develomark-Agency/alchemy-viz/releases) has the package tarball attached. Install it into an Alchemy v2 project from its URL, with `X.Y.Z` being the version (each release's notes show its exact command):
 
 ```bash
-npm install --save-dev alchemy-viz   # or: bun add --dev alchemy-viz
-npx alchemy-viz                      # or: bunx --bun alchemy-viz
+bun add --dev https://github.com/Develomark-Agency/alchemy-viz/releases/download/vX.Y.Z/alchemy-viz-X.Y.Z.tgz
+# or
+npm install --save-dev https://github.com/Develomark-Agency/alchemy-viz/releases/download/vX.Y.Z/alchemy-viz-X.Y.Z.tgz
 ```
 
-It runs on Node 22.22.3, 24.11.1 or newer, or Bun. Releases are listed on [GitHub](https://github.com/Develomark-Agency/alchemy-viz/releases) and published to [npm](https://www.npmjs.com/package/alchemy-viz).
+Then run it with `npx alchemy-viz` or `bunx --bun alchemy-viz`. It runs on Node 22.22.3, 24.11.1 or newer, or Bun. To upgrade, install the newer release's URL.
 
 ## This repository
 
@@ -234,6 +235,4 @@ CI runs the checks and the smoke test (Node 22 and 24) on every push and pull re
 bun release patch   # or minor, major
 ```
 
-`scripts/release.ts` checks that local `main` matches GitHub, shows the version it will release (`0.1.0 → 0.1.1`), runs the checks, then starts the [Release workflow](.github/workflows/release.yml) and follows it. The workflow bumps the version, runs the checks and the smoke test, commits and tags `vX.Y.Z` on `main`, publishes to npm and creates the GitHub Release with the tarball and generated notes. Nothing is committed or tagged unless every check passes. If publishing fails after tagging, re-run the failed job from the run's page. `--dry-run` shows the version without releasing anything.
-
-npm publishing uses [trusted publishing](https://docs.npmjs.com/trusted-publishers): no token is stored. The `alchemy-viz` package on npm names this repository and `release.yml` as its trusted publisher.
+`scripts/release.ts` checks that local `main` matches GitHub, shows the version it will release (`0.1.0 → 0.1.1`), runs the checks, then starts the [Release workflow](.github/workflows/release.yml) and follows it. The workflow bumps the version, runs the checks and the smoke test, commits and tags `vX.Y.Z` on `main`, then creates the GitHub Release with the package tarball attached, install commands and generated notes. Nothing is committed or tagged unless every check passes. If creating the release fails after tagging, re-run the failed job from the run's page. `--dry-run` shows the version without releasing anything.
