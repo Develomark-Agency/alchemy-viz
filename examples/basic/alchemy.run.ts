@@ -20,6 +20,9 @@ const Api = Effect.gen(function* () {
     store,
     value: Redacted.make("sk_test_local_only")
   });
+  const vectorize = yield* Cloudflare.Vectorize.Index("Vectorize", {
+    dimensions: 1536
+  });
 
   // Opt in with EXAMPLE_HYPERDRIVE=1 after `bun run db:up` starts Postgres in Docker.
   // In alchemy dev the binding connects to the `dev` origin; `origin` is what a deploy would use.
@@ -42,7 +45,8 @@ const Api = Effect.gen(function* () {
       ONBOARDING: Cloudflare.Workflow<{ email: string }>("Onboarding", { className: "Onboarding" }),
       ...(hyperdrive ? { HYPERDRIVE: hyperdrive } : {}),
       ...(withContainers ? { SANDBOX: Cloudflare.DurableObject("Sandbox", { containers: [Shell] }) } : {}),
-      GREETING: "hello from alchemy-viz"
+      GREETING: "hello from alchemy-viz",
+      VECTORIZE: vectorize
     }
   });
 
