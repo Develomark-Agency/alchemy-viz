@@ -229,6 +229,7 @@ function OutputDialog({ open, onOpenChange, status }: { open: boolean, onOpenCha
   const { data } = useStack();
   const live = status?.runs.find(r => r.owned);
   const ran = live ?? status?.last;
+  const failed = !live && !!status?.last && !status.last.stopped && status.last.code !== 0;
   const lines = live ? status!.output : status?.last?.tail ?? [];
   const title = live ? `${commandLabels[live.command].doing} on ${live.stage}` : status?.last ? `${commandLabels[status.last.command].done} on ${status.last.stage}` : "Output";
 
@@ -248,16 +249,20 @@ function OutputDialog({ open, onOpenChange, status }: { open: boolean, onOpenCha
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[min(860px,calc(100vw-32px))]">
         <DialogTitle>{title}</DialogTitle>
-        <DialogDescription>
-          {live
-            ? <>Running. These logs are also on the <Link to="/logs" onClick={() => onOpenChange(false)} className="underline decoration-line-strong underline-offset-2 hover:text-fg hover:decoration-current">Logs page</Link>.</>
-            : status?.last ? (status.last.stopped ? "Stopped." : status.last.code === 0 ? "Finished." : `Exited with code ${status.last.code}.`) : "Nothing has run from the dashboard yet."}
+        <DialogDescription className="flex items-center gap-2">
+          <span className={cn("size-1.5 rounded-full", live ? "bg-ok" : failed ? "bg-danger" : "bg-fg-subtle")} />
+          <span>{live ? "Running" : status?.last ? (status.last.stopped ? "Stopped" : status.last.code === 0 ? "Finished" : `Exited with code ${status.last.code}`) : "Nothing has run yet"}</span>
+          {ran && (
+            <>
+              <span className="text-fg-subtle" aria-hidden>·</span>
+              <Link to="/logs" onClick={() => onOpenChange(false)} className="underline decoration-line-strong underline-offset-2 hover:text-fg hover:decoration-current">Logs</Link>
+            </>
+          )}
         </DialogDescription>
         <DialogBody>
           <TerminalOutput
             title={ran ? `alchemy ${ran.command} --stage ${ran.stage}` : "alchemy"}
             lines={lines}
-            live={!!live}
             linkTag={linkTag}
             empty={live ? "Waiting for output…" : "No output."}
           />

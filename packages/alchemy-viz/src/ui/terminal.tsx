@@ -67,15 +67,13 @@ function Line({ text, linkTag }: { text: string, linkTag?: TagLinker }) {
 
 /**
  * Plain-text process output in a terminal-style panel: a title bar, coloured
- * log levels and tags, clickable URLs, and a tail that follows new lines until
+ * log levels and tags, clickable URLs, a slim dark scrollbar, and a tail that follows new lines until
  * the reader scrolls up.
  */
-export function TerminalOutput({ title, lines, live = false, linkTag, empty = "No output.", className, maxHeight = "55vh" }: {
+export function TerminalOutput({ title, lines, linkTag, empty = "No output.", className, maxHeight = "55vh" }: {
   /** What the panel shows, e.g. the command line. */
   title: ReactNode,
   lines: string[],
-  /** Shows a blinking cursor after the last line while the process is still running. */
-  live?: boolean,
   /** Makes a line's `[tag]` a link, when it names something the caller can open. */
   linkTag?: TagLinker,
   empty?: ReactNode,
@@ -107,7 +105,7 @@ export function TerminalOutput({ title, lines, live = false, linkTag, empty = "N
         tabIndex={0}
         role="log"
         aria-label="Output"
-        className="overflow-auto px-3.5 py-3 font-mono text-xs leading-5 selection:bg-white/20 focus-visible:outline-none"
+        className="overflow-auto px-3.5 py-3 [color-scheme:dark] [scrollbar-color:rgb(255_255_255/0.22)_transparent] [scrollbar-width:thin] font-mono text-xs leading-5 selection:bg-white/20 focus-visible:outline-none"
         style={{ maxHeight, minHeight: 160 }}
         onScroll={event => {
           const el = event.currentTarget;
@@ -119,7 +117,6 @@ export function TerminalOutput({ title, lines, live = false, linkTag, empty = "N
         {lines.length === 0
           ? <div className="text-[#6b6b6b]">{empty}</div>
           : lines.map((line, i) => <Line key={i} text={line} linkTag={linkTag} />)}
-        {live && lines.length > 0 && <span className="inline-block h-3.5 w-1.5 translate-y-0.5 animate-pulse bg-[#c9c9c9]/70 motion-reduce:animate-none" aria-hidden />}
       </div>
       {away && (
         <button
