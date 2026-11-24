@@ -60,6 +60,12 @@ export function cloudflare() {
         view: file("./workflow/view.tsx")
       },
       {
+        type: ["Cloudflare.SecretsStore", "Cloudflare.SecretsStore.Secret"],
+        title: "Secrets",
+        server: file("./secrets-store/server.ts"),
+        view: file("./secrets-store/view.tsx")
+      },
+      {
         type: "Cloudflare.Worker",
         title: "Durable Objects",
         server: file("./durable-objects/server.ts"),
